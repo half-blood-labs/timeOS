@@ -8,8 +8,12 @@ defmodule Timeos.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: Timeos.Worker.start_link(arg)
-      # {Timeos.Worker, arg}
+      TimeOS.Repo,
+      TimeOS.RuleRegistry,
+      TimeOS.EventReceiver,
+      TimeOS.Evaluator,
+      TimeOS.Scheduler,
+      {DynamicSupervisor, strategy: :one_for_one, name: TimeOS.WorkerSupervisor}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
