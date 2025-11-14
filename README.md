@@ -24,6 +24,9 @@ TimeOS is a powerful temporal rule engine for Elixir that enables you to schedul
 - **Telemetry**: Built-in observability with event tracking
 - **Graceful Shutdown**: Safely handle in-flight jobs during shutdown
 - **Web UI**: Beautiful dashboard for monitoring jobs in real-time
+- **Job Timeouts**: Automatic timeout handling for long-running jobs
+- **Per-Rule Concurrency Limits**: Control concurrent executions per rule
+- **Web UI Authentication**: Basic auth and API key support for secure access
 
 ## Installation
 
@@ -230,6 +233,41 @@ TimeOS.update_rule(rule.id, %{rate_limit_per_minute: 10})
 
 This limits the rule to 10 executions per minute.
 
+### Per-Rule Concurrency Limits
+
+Control how many jobs from a rule can run concurrently:
+
+```elixir
+rule = TimeOS.list_rules() |> Enum.find(&(&1.name =~ "process_data"))
+TimeOS.update_rule(rule.id, %{concurrency_limit: 5})
+```
+
+This ensures that at most 5 jobs from this rule run simultaneously. Other jobs will wait until a slot becomes available.
+
+### Job Timeouts
+
+Set timeouts for jobs to prevent them from running indefinitely:
+
+```elixir
+# In your rule DSL, you can specify timeout in action options
+on_event :process_large_file, offset: seconds(0) do
+  perform :process_file, timeout_seconds: 300  # 5 minutes
+end
+```
+
+Or set it when creating a job programmatically:
+
+```elixir
+job = %{
+  rule_id: rule.id,
+  perform_at: DateTime.utc_now(),
+  timeout_seconds: 600,  # 10 minutes
+  args: %{"action" => "long_running_task"}
+}
+```
+
+Jobs that exceed their timeout will be automatically marked as failed and can be retried according to the retry policy.
+
 ### Timezone Support
 
 Schedule jobs in specific timezones:
@@ -375,12 +413,23 @@ config :timeos, enable_ui: true
 config :timeos, ui_port: 4000
 ```
 
-2. Start your application:
+2. (Optional) Enable authentication:
+```elixir
+config :timeos, ui_auth_enabled: true
+config :timeos, ui_username: "admin"
+config :timeos, ui_password: "your-secure-password"
+
+# Or use API key authentication
+config :timeos, ui_auth_enabled: true
+config :timeos, ui_api_key: "your-api-key-here"
+```
+
+3. Start your application:
 ```bash
 mix run --no-halt
 ```
 
-3. Open your browser to `http://localhost:4000`
+4. Open your browser to `http://localhost:4000`
 
 The UI provides:
 - Real-time job dashboard with status badges
@@ -389,6 +438,11 @@ The UI provides:
 - Filter jobs by status
 - Auto-refresh capability
 - Beautiful modern design
+
+**Authentication:**
+- **Basic Auth**: Use username/password configured in your config
+- **API Key**: Use `Authorization: Bearer <api_key>` header
+- When authentication is enabled, the UI will prompt for credentials
 
 ### Telemetry
 
