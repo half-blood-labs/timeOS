@@ -13,6 +13,14 @@ TimeOS is a powerful temporal rule engine for Elixir that enables you to schedul
 - **Dead Letter Queue**: Automatic handling of permanently failed jobs
 - **Retry Logic**: Exponential backoff with configurable max attempts
 - **Conditional Rules**: Filter events with `when` clauses
+- **Event Deduplication**: Prevent duplicate events with idempotency keys
+- **Job Dependencies**: Chain jobs together (job A triggers job B)
+- **Batch Operations**: Emit multiple events or cancel multiple jobs at once
+- **Event Querying**: Query and replay events
+- **Health Checks**: Monitor system health and component status
+- **Telemetry**: Built-in observability with event tracking
+- **Graceful Shutdown**: Safely handle in-flight jobs during shutdown
+- **Web UI**: Beautiful dashboard for monitoring jobs in real-time
 
 ## Installation
 
@@ -92,6 +100,9 @@ TimeOS.register_performer(MyApp.Performer)
 
 ```elixir
 TimeOS.emit(:user_signup, %{"user_id" => "123"})
+
+# With idempotency key to prevent duplicates
+TimeOS.emit(:user_signup, %{"user_id" => "123"}, idempotency_key: "unique-key-123")
 ```
 
 ## DSL Reference
@@ -249,21 +260,185 @@ end
 - `TimeOS.retry_dead_letter_job(job_id)` - Retry a dead letter job
 - `TimeOS.delete_dead_letter_job(job_id)` - Permanently delete a dead letter job
 
+### Event Deduplication
+
+Prevent duplicate events using idempotency keys:
+
+```elixir
+# First call creates the event
+{:ok, event_id1} = TimeOS.emit(:payment_received, %{"amount" => 100}, 
+  idempotency_key: "payment-123")
+
+# Second call with same key returns existing event ID
+{:ok, event_id2} = TimeOS.emit(:payment_received, %{"amount" => 100}, 
+  idempotency_key: "payment-123")
+
+# event_id1 == event_id2
+```
+
+### Job Dependencies
+
+Chain jobs together so one job waits for another to complete:
+
+```elixir
+# Job B depends on Job A
+job_a = %{
+  rule_id: rule.id,
+  perform_at: DateTime.utc_now(),
+  status: :pending,
+  args: %{"action" => "process_data"}
+}
+
+# Job B will wait for Job A to succeed
+job_b = %{
+  rule_id: rule.id,
+  perform_at: DateTime.utc_now(),
+  status: :pending,
+  depends_on_job_id: job_a.id,
+  args: %{"action" => "send_notification"}
+}
+```
+
+### Batch Operations
+
+Emit multiple events or cancel multiple jobs at once:
+
+```elixir
+# Emit multiple events
+events = [
+  {:user_signup, %{"user_id" => "1"}},
+  {:user_signup, %{"user_id" => "2"}},
+  {:user_signup, %{"user_id" => "3"}}
+]
+
+results = TimeOS.emit_batch(events)
+# Returns: [{event_id1, :ok}, {event_id2, :ok}, {event_id3, :ok}]
+
+# Cancel multiple jobs
+job_ids = ["job-1", "job-2", "job-3"]
+TimeOS.cancel_jobs_batch(job_ids)
+```
+
+### Event Querying and Replay
+
+Query events and replay them if needed:
+
+```elixir
+# List events with filters
+events = TimeOS.list_events(type: "user_signup", limit: 50)
+
+# Get a specific event
+event = TimeOS.get_event(event_id)
+
+# Replay an event (re-evaluate against rules)
+{:ok, replayed_event} = TimeOS.replay_event(event_id)
+```
+
+### Health Checks
+
+Monitor system health and component status:
+
+```elixir
+health = TimeOS.health_check()
+
+# Returns:
+# %{
+#   status: :healthy | :degraded,
+#   components: %{
+#     database: %{status: :healthy, message: "..."},
+#     rule_registry: %{status: :healthy, message: "..."},
+#     evaluator: %{status: :healthy, message: "..."},
+#     scheduler: %{status: :healthy, message: "..."},
+#     rate_limiter: %{status: :healthy, message: "..."}
+#   },
+#   metrics: %{
+#     pending_jobs: 10,
+#     running_jobs: 2,
+#     failed_jobs: 0,
+#     dead_letter_jobs: 1,
+#     total_rules: 5,
+#     enabled_rules: 4
+#   }
+# }
+```
+
+### Web UI
+
+TimeOS includes a beautiful web interface for monitoring jobs in real-time:
+
+1. Enable the UI in `config/dev.exs`:
+```elixir
+config :timeos, enable_ui: true
+config :timeos, ui_port: 4000
+```
+
+2. Start your application:
+```bash
+mix run --no-halt
+```
+
+3. Open your browser to `http://localhost:4000`
+
+The UI provides:
+- Real-time job dashboard with status badges
+- System health indicators
+- Metrics overview (pending, running, failed jobs, etc.)
+- Filter jobs by status
+- Auto-refresh capability
+- Beautiful modern design
+
+### Telemetry
+
+TimeOS emits telemetry events for observability:
+
+```elixir
+# Events are automatically tracked:
+# - [:timeos, :event, :emitted]
+# - [:timeos, :job, :created]
+# - [:timeos, :job, :started]
+# - [:timeos, :job, :completed]
+# - [:timeos, :job, :failed]
+# - [:timeos, :rule, :matched]
+# - [:timeos, :rate_limit, :exceeded]
+
+# Attach your own handlers
+:telemetry.attach("my-handler", [:timeos, :job, :completed], fn event, measurements, metadata ->
+  # Handle job completion
+end)
+```
+
 ## API Reference
 
 ### Events
 
 ```elixir
+# Emit an event
 TimeOS.emit(:event_type, %{"key" => "value"})
 TimeOS.emit(:event_type, %{"key" => "value"}, occurred_at: DateTime.utc_now())
+TimeOS.emit(:event_type, %{"key" => "value"}, idempotency_key: "unique-key")
+
+# Batch emit
+TimeOS.emit_batch([
+  {:event1, %{"data" => 1}},
+  {:event2, %{"data" => 2}}
+])
+
+# Query events
+TimeOS.list_events(type: "user_signup", processed: false, limit: 100, offset: 0)
+TimeOS.get_event(event_id)
+
+# Replay events
+TimeOS.replay_event(event_id)
 ```
 
 ### Jobs
 
 ```elixir
-TimeOS.list_jobs(status: :pending, limit: 100)
+# List and manage jobs
+TimeOS.list_jobs(status: :pending, limit: 100, rule_id: rule_id, event_id: event_id)
 TimeOS.get_job(job_id)
 TimeOS.cancel_job(job_id)
+TimeOS.cancel_jobs_batch([job_id1, job_id2])
 ```
 
 ### Rules
@@ -284,6 +459,14 @@ TimeOS.reload_rules()
 TimeOS.list_dead_letter_jobs(rule_id: rule_id, limit: 50)
 TimeOS.retry_dead_letter_job(job_id)
 TimeOS.delete_dead_letter_job(job_id)
+```
+
+### Health and Monitoring
+
+```elixir
+# Check system health
+TimeOS.health_check()
+# Returns health status, component checks, and metrics
 ```
 
 ## Examples
@@ -373,7 +556,18 @@ config :timeos, TimeOS.Repo,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
+
+# Enable web UI (optional)
+config :timeos, enable_ui: true
+config :timeos, ui_port: 4000
 ```
+
+### Graceful Shutdown
+
+TimeOS automatically handles graceful shutdown:
+- Waits for in-flight jobs to complete (up to 5 seconds)
+- Reverts running jobs to pending status if worker crashes
+- Logs warnings for jobs still running after grace period
 
 ## Testing
 
@@ -390,17 +584,26 @@ TimeOS includes comprehensive tests for all features including:
 - Rate limiting
 - Timezone handling
 - Cron parsing
+- Event deduplication
+- Job dependencies
+- Batch operations
+- Health checks
+- Integration tests
 
 ## Architecture
 
 TimeOS consists of several key components:
 
 - **Evaluator**: Matches events against rules and creates scheduled jobs
-- **Scheduler**: Polls for due jobs and spawns workers
-- **JobWorker**: Executes jobs with retry logic
+- **Scheduler**: Polls for due jobs and spawns workers, checks dependencies
+- **JobWorker**: Executes jobs with retry logic and graceful shutdown handling
 - **RuleRegistry**: Manages rules and performer callbacks
 - **RateLimiter**: Enforces rate limits using token bucket algorithm
 - **CronParser**: Parses and calculates next execution times for cron expressions
+- **EventReceiver**: Receives and forwards events to the evaluator
+- **Health**: Monitors system health and component status
+- **Telemetry**: Tracks events and job lifecycle for observability
+- **Web**: Provides web UI for job monitoring (optional)
 
 ## Contributing
 
