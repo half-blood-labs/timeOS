@@ -16,13 +16,14 @@ defmodule TimeOS.Factory do
       priority: 0,
       rate_limit_per_minute: nil,
       timezone: nil,
-      cron_expression: nil
+      cron_expression: nil,
+      concurrency_limit: nil
     }
   end
 
   def event_factory do
     %Event{
-      type: :test_event,
+      type: "test_event",
       payload: %{"user_id" => "123"},
       occurred_at: DateTime.utc_now(),
       processed: false
@@ -42,6 +43,7 @@ defmodule TimeOS.Factory do
       rate_limit_key: nil,
       dead_letter_queue: false,
       dead_letter_at: nil,
+      timeout_seconds: nil,
       args: %{
         "action" => "test_action",
         "opts" => [],
