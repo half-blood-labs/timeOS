@@ -20,7 +20,7 @@ defmodule RateLimitingTest do
         RateLimiter.check_rate_limit(key, limit)
       end
 
-      assert Enum.all?(results, &(&1 == :ok))
+      assert Enum.all?(results, &(&1 == {:ok, :allowed}))
     end
 
     test "rate limits when limit exceeded" do
@@ -28,11 +28,11 @@ defmodule RateLimitingTest do
       limit = 3
 
       for _ <- 1..3 do
-        assert :ok = RateLimiter.check_rate_limit(key, limit)
+        assert {:ok, :allowed} = RateLimiter.check_rate_limit(key, limit)
       end
 
       result = RateLimiter.check_rate_limit(key, limit)
-      assert {:rate_limited, _wait_seconds} = result
+      assert {:error, :rate_limited, _wait_seconds} = result
     end
 
     test "different keys have separate rate limits" do
@@ -40,12 +40,12 @@ defmodule RateLimitingTest do
       key2 = "key2"
       limit = 2
 
-      assert :ok = RateLimiter.check_rate_limit(key1, limit)
-      assert :ok = RateLimiter.check_rate_limit(key1, limit)
-      assert {:rate_limited, _} = RateLimiter.check_rate_limit(key1, limit)
+      assert {:ok, :allowed} = RateLimiter.check_rate_limit(key1, limit)
+      assert {:ok, :allowed} = RateLimiter.check_rate_limit(key1, limit)
+      assert {:error, :rate_limited, _} = RateLimiter.check_rate_limit(key1, limit)
 
-      assert :ok = RateLimiter.check_rate_limit(key2, limit)
-      assert :ok = RateLimiter.check_rate_limit(key2, limit)
+      assert {:ok, :allowed} = RateLimiter.check_rate_limit(key2, limit)
+      assert {:ok, :allowed} = RateLimiter.check_rate_limit(key2, limit)
     end
 
     test "rate limit key is generated from rule and action" do

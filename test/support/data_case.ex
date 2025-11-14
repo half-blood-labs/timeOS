@@ -17,6 +17,13 @@ defmodule TimeOS.DataCase do
   end
 
   setup tags do
+    case Process.whereis(TimeOS.Repo) do
+      nil ->
+        {:ok, _} = Application.ensure_all_started(:timeos)
+      _ ->
+        :ok
+    end
+
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(TimeOS.Repo)
 
     unless tags[:async] do
