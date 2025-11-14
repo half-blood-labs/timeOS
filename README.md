@@ -3,30 +3,17 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/timeos.svg)](https://hex.pm/packages/timeos)
 [![CI](https://github.com/ijunaid8989/timeOS/workflows/CI/badge.svg)](https://github.com/ijunaid8989/timeOS/actions)
 
-TimeOS is a powerful temporal rule engine for Elixir that enables you to schedule jobs based on events, time intervals, and cron expressions. It provides enterprise-grade features including job prioritization, rate limiting, timezone support, and dead letter queue management.
+**TimeOS** is a production-ready temporal rule engine for Elixir that enables you to schedule jobs based on events, time intervals, and cron expressions. It provides enterprise-grade features including job prioritization, rate limiting, timezone support, dead letter queue management, and a beautiful web UI.
 
-## Features
+## Why TimeOS?
 
-- **Event-Driven Scheduling**: Trigger jobs based on events with configurable delays
-- **Periodic Jobs**: Schedule jobs to run at regular intervals
-- **Cron Scheduling**: Full cron expression support with convenient day-of-week helpers
-- **Job Prioritization**: Execute jobs based on priority levels
-- **Rate Limiting**: Per-rule and per-action rate limiting
-- **Timezone Support**: Schedule jobs in any timezone
-- **Dead Letter Queue**: Automatic handling of permanently failed jobs
-- **Retry Logic**: Exponential backoff with configurable max attempts
-- **Conditional Rules**: Filter events with `when` clauses
-- **Event Deduplication**: Prevent duplicate events with idempotency keys
-- **Job Dependencies**: Chain jobs together (job A triggers job B)
-- **Batch Operations**: Emit multiple events or cancel multiple jobs at once
-- **Event Querying**: Query and replay events
-- **Health Checks**: Monitor system health and component status
-- **Telemetry**: Built-in observability with event tracking
-- **Graceful Shutdown**: Safely handle in-flight jobs during shutdown
-- **Web UI**: Beautiful dashboard for monitoring jobs in real-time
-- **Job Timeouts**: Automatic timeout handling for long-running jobs
-- **Per-Rule Concurrency Limits**: Control concurrent executions per rule
-- **Web UI Authentication**: Basic auth and API key support for secure access
+TimeOS solves the complexity of job scheduling in Elixir applications by providing:
+
+- **Declarative DSL** - Write rules that read like English
+- **Event-Driven** - Trigger jobs based on application events
+- **Production-Ready** - Built-in retry logic, timeouts, concurrency limits, and graceful shutdown
+- **Observable** - Health checks, telemetry, and web UI for monitoring
+- **Flexible** - Support for timezones, dependencies, batch operations, and more
 
 ## Installation
 
@@ -40,43 +27,52 @@ def deps do
 end
 ```
 
-Then run `mix deps.get` and `mix ecto.setup`.
+Then run:
+
+```bash
+mix deps.get
+mix ecto.setup
+```
 
 ## Quick Start
 
 ### 1. Define Your Rules
 
-Create a module with your temporal rules:
+Create a module with your temporal rules using the intuitive DSL:
 
 ```elixir
 defmodule MyApp.Rules do
   use TimeOS.DSL.RuleSet
 
+  # Event-driven: Trigger after an event occurs
   on_event :user_signup, offset: days(2) do
     perform :send_welcome_email
   end
 
-  every_monday at: "09:00", timezone: "America/New_York" do
-    perform :send_weekly_report
+  # Periodic: Run every X minutes/hours/days
+  every hours(1) do
+    perform :check_system_health
   end
 
-  cron "0 0 * * *", timezone: "UTC" do
-    perform :daily_cleanup
+  # Cron: Full cron expression support
+  cron "0 9 * * 1", timezone: "America/New_York" do
+    perform :monday_morning_report
+  end
+
+  # Day-of-week helpers: Because cron is hard
+  every_monday at: "09:00", timezone: "America/New_York" do
+    perform :send_weekly_newsletter
   end
 end
 ```
 
-### 2. Register Your Rules
+### 2. Register Rules and Performer
 
 ```elixir
+# Load rules from your module
 TimeOS.load_rules_from_module(MyApp.Rules)
-```
 
-### 3. Create a Performer
-
-Implement the actions your rules will execute:
-
-```elixir
+# Register a performer to handle actions
 defmodule MyApp.Performer do
   def perform(:send_welcome_email, payload) do
     user_id = payload["user_id"]
@@ -84,42 +80,42 @@ defmodule MyApp.Performer do
     :ok
   end
 
-  def perform(:send_weekly_report, _payload) do
+  def perform(:check_system_health, _payload) do
+    HealthChecker.check()
+    :ok
+  end
+
+  def perform(:monday_morning_report, _payload) do
     Report.generate_and_send()
     :ok
   end
-
-  def perform(:daily_cleanup, _payload) do
-    Database.cleanup_old_records()
-    :ok
-  end
 end
-```
 
-### 4. Register the Performer
-
-```elixir
 TimeOS.register_performer(MyApp.Performer)
 ```
 
-### 5. Emit Events
+### 3. Emit Events
 
 ```elixir
+# Emit an event
 TimeOS.emit(:user_signup, %{"user_id" => "123"})
 
 # With idempotency key to prevent duplicates
-TimeOS.emit(:user_signup, %{"user_id" => "123"}, idempotency_key: "unique-key-123")
+TimeOS.emit(:user_signup, %{"user_id" => "123"}, 
+  idempotency_key: "unique-key-123")
 ```
 
-## DSL Reference
+That's it! Your jobs are automatically scheduled and will execute when due.
 
-### Event-Based Rules
+## Core Features
 
-Trigger jobs after an event occurs:
+### Event-Driven Scheduling
+
+Trigger jobs after events occur with configurable delays:
 
 ```elixir
-on_event :user_signup, offset: days(2) do
-  perform :send_welcome_email
+on_event :order_placed, offset: minutes(15) do
+  perform :send_order_confirmation
 end
 
 on_event :payment_received, offset: hours(24), when: fn payload ->
@@ -133,7 +129,7 @@ end
 - `offset`: Delay before executing (use `days()`, `hours()`, `minutes()`, `seconds()`)
 - `when`: Conditional function that receives the event payload
 
-### Periodic Rules
+### Periodic Jobs
 
 Run jobs at regular intervals:
 
@@ -149,7 +145,7 @@ end
 
 ### Cron Scheduling
 
-Use standard cron expressions:
+Use standard cron expressions with timezone support:
 
 ```elixir
 cron "0 9 * * 1", timezone: "America/New_York" do
@@ -176,46 +172,21 @@ every_tuesday at: "14:30" do
   perform :team_meeting_reminder
 end
 
-every_wednesday do
-  perform :midweek_check
-end
-
-every_thursday do
-  perform :thursday_task
-end
-
-every_friday do
-  perform :weekend_prep
-end
-
-every_saturday do
-  perform :saturday_maintenance
-end
-
-every_sunday do
-  perform :sunday_review
-end
+# All days supported: every_monday, every_tuesday, every_wednesday,
+# every_thursday, every_friday, every_saturday, every_sunday
 ```
 
 **Options:**
 - `at`: Time in "HH:MM" format (24-hour)
-- `timezone`: Timezone for the schedule
+- `timezone`: Timezone for the schedule (defaults to UTC)
 
 ## Advanced Features
 
 ### Job Prioritization
 
-Set priority levels for jobs:
+Execute critical jobs first by setting priority levels:
 
 ```elixir
-defmodule MyApp.PriorityRules do
-  use TimeOS.DSL.RuleSet
-
-  on_event :critical_alert, offset: seconds(0) do
-    perform :handle_critical_alert
-  end
-end
-
 rule = TimeOS.list_rules() |> Enum.find(&(&1.name =~ "critical_alert"))
 TimeOS.update_rule(rule.id, %{priority: 100})
 ```
@@ -224,82 +195,60 @@ Higher priority jobs execute first. Default priority is 0.
 
 ### Rate Limiting
 
-Limit execution rate per rule:
+Prevent overwhelming external APIs or services:
 
 ```elixir
 rule = TimeOS.list_rules() |> Enum.find(&(&1.name =~ "send_email"))
 TimeOS.update_rule(rule.id, %{rate_limit_per_minute: 10})
 ```
 
-This limits the rule to 10 executions per minute.
+This limits the rule to 10 executions per minute using a token bucket algorithm.
 
 ### Per-Rule Concurrency Limits
 
-Control how many jobs from a rule can run concurrently:
+Control how many jobs from a rule can run simultaneously:
 
 ```elixir
 rule = TimeOS.list_rules() |> Enum.find(&(&1.name =~ "process_data"))
 TimeOS.update_rule(rule.id, %{concurrency_limit: 5})
 ```
 
-This ensures that at most 5 jobs from this rule run simultaneously. Other jobs will wait until a slot becomes available.
+This ensures at most 5 jobs from this rule run concurrently. Other jobs wait until a slot becomes available.
 
 ### Job Timeouts
 
-Set timeouts for jobs to prevent them from running indefinitely:
+Prevent jobs from running indefinitely:
 
 ```elixir
-# In your rule DSL, you can specify timeout in action options
+# In your rule DSL
 on_event :process_large_file, offset: seconds(0) do
   perform :process_file, timeout_seconds: 300  # 5 minutes
 end
 ```
 
-Or set it when creating a job programmatically:
+Jobs exceeding their timeout are automatically marked as failed and can be retried according to the retry policy.
+
+### Job Dependencies
+
+Chain jobs together so one job waits for another to complete:
 
 ```elixir
-job = %{
+# When creating jobs programmatically
+job_a = %{
   rule_id: rule.id,
   perform_at: DateTime.utc_now(),
-  timeout_seconds: 600,  # 10 minutes
-  args: %{"action" => "long_running_task"}
+  status: :pending,
+  args: %{"action" => "process_data"}
+}
+
+job_b = %{
+  rule_id: rule.id,
+  perform_at: DateTime.utc_now(),
+  status: :pending,
+  depends_on_job_id: job_a.id,  # Job B waits for Job A
+  args: %{"action" => "send_notification"}
 }
 ```
-
-Jobs that exceed their timeout will be automatically marked as failed and can be retried according to the retry policy.
-
-### Timezone Support
-
-Schedule jobs in specific timezones:
-
-```elixir
-every_monday at: "09:00", timezone: "America/New_York" do
-  perform :morning_report
-end
-
-cron "0 12 * * *", timezone: "Europe/London" do
-  perform :lunch_reminder
-end
-```
-
-### Dead Letter Queue
-
-Jobs that fail after max attempts are moved to the dead letter queue:
-
-```elixir
-dead_jobs = TimeOS.list_dead_letter_jobs()
-
-for job <- dead_jobs do
-  IO.inspect(job.last_error)
-  
-  TimeOS.retry_dead_letter_job(job.id)
-end
-```
-
-**API:**
-- `TimeOS.list_dead_letter_jobs(filters \\ [])` - List dead letter jobs
-- `TimeOS.retry_dead_letter_job(job_id)` - Retry a dead letter job
-- `TimeOS.delete_dead_letter_job(job_id)` - Permanently delete a dead letter job
 
 ### Event Deduplication
 
@@ -317,27 +266,22 @@ Prevent duplicate events using idempotency keys:
 # event_id1 == event_id2
 ```
 
-### Job Dependencies
+### Dead Letter Queue
 
-Chain jobs together so one job waits for another to complete:
+Jobs that fail after max attempts are moved to the dead letter queue:
 
 ```elixir
-# Job B depends on Job A
-job_a = %{
-  rule_id: rule.id,
-  perform_at: DateTime.utc_now(),
-  status: :pending,
-  args: %{"action" => "process_data"}
-}
+# List dead letter jobs
+dead_jobs = TimeOS.list_dead_letter_jobs()
 
-# Job B will wait for Job A to succeed
-job_b = %{
-  rule_id: rule.id,
-  perform_at: DateTime.utc_now(),
-  status: :pending,
-  depends_on_job_id: job_a.id,
-  args: %{"action" => "send_notification"}
-}
+# Inspect and retry
+for job <- dead_jobs do
+  IO.inspect(job.last_error)
+  TimeOS.retry_dead_letter_job(job.id)
+end
+
+# Or permanently delete
+TimeOS.delete_dead_letter_job(job.id)
 ```
 
 ### Batch Operations
@@ -351,29 +295,48 @@ events = [
   {:user_signup, %{"user_id" => "2"}},
   {:user_signup, %{"user_id" => "3"}}
 ]
-
 results = TimeOS.emit_batch(events)
 # Returns: [{event_id1, :ok}, {event_id2, :ok}, {event_id3, :ok}]
 
 # Cancel multiple jobs
-job_ids = ["job-1", "job-2", "job-3"]
-TimeOS.cancel_jobs_batch(job_ids)
+TimeOS.cancel_jobs_batch(["job-1", "job-2", "job-3"])
 ```
 
-### Event Querying and Replay
+## Monitoring & Observability
 
-Query events and replay them if needed:
+### Web UI
+
+TimeOS includes a beautiful web interface for monitoring jobs in real-time.
+
+**Enable the UI:**
 
 ```elixir
-# List events with filters
-events = TimeOS.list_events(type: "user_signup", limit: 50)
-
-# Get a specific event
-event = TimeOS.get_event(event_id)
-
-# Replay an event (re-evaluate against rules)
-{:ok, replayed_event} = TimeOS.replay_event(event_id)
+# config/dev.exs
+config :timeos, enable_ui: true
+config :timeos, ui_port: 4000
 ```
+
+**Enable Authentication (Recommended for Production):**
+
+```elixir
+# Basic Auth
+config :timeos, ui_auth_enabled: true
+config :timeos, ui_username: "admin"
+config :timeos, ui_password: "your-secure-password"
+
+# Or API Key
+config :timeos, ui_auth_enabled: true
+config :timeos, ui_api_key: "your-api-key-here"
+```
+
+Then start your application and visit `http://localhost:4000`.
+
+**Features:**
+- Real-time job dashboard with status badges
+- System health indicators
+- Metrics overview (pending, running, failed jobs, etc.)
+- Filter jobs by status
+- Auto-refresh capability
 
 ### Health Checks
 
@@ -403,53 +366,12 @@ health = TimeOS.health_check()
 # }
 ```
 
-### Web UI
-
-TimeOS includes a beautiful web interface for monitoring jobs in real-time:
-
-1. Enable the UI in `config/dev.exs`:
-```elixir
-config :timeos, enable_ui: true
-config :timeos, ui_port: 4000
-```
-
-2. (Optional) Enable authentication:
-```elixir
-config :timeos, ui_auth_enabled: true
-config :timeos, ui_username: "admin"
-config :timeos, ui_password: "your-secure-password"
-
-# Or use API key authentication
-config :timeos, ui_auth_enabled: true
-config :timeos, ui_api_key: "your-api-key-here"
-```
-
-3. Start your application:
-```bash
-mix run --no-halt
-```
-
-4. Open your browser to `http://localhost:4000`
-
-The UI provides:
-- Real-time job dashboard with status badges
-- System health indicators
-- Metrics overview (pending, running, failed jobs, etc.)
-- Filter jobs by status
-- Auto-refresh capability
-- Beautiful modern design
-
-**Authentication:**
-- **Basic Auth**: Use username/password configured in your config
-- **API Key**: Use `Authorization: Bearer <api_key>` header
-- When authentication is enabled, the UI will prompt for credentials
-
 ### Telemetry
 
 TimeOS emits telemetry events for observability:
 
 ```elixir
-# Events are automatically tracked:
+# Events automatically tracked:
 # - [:timeos, :event, :emitted]
 # - [:timeos, :job, :created]
 # - [:timeos, :job, :started]
@@ -457,12 +379,82 @@ TimeOS emits telemetry events for observability:
 # - [:timeos, :job, :failed]
 # - [:timeos, :rule, :matched]
 # - [:timeos, :rate_limit, :exceeded]
+# - [:timeos, :concurrency_limit, :exceeded]
 
 # Attach your own handlers
-:telemetry.attach("my-handler", [:timeos, :job, :completed], fn event, measurements, metadata ->
-  # Handle job completion
-end)
+:telemetry.attach("my-handler", [:timeos, :job, :completed], 
+  fn event, measurements, metadata ->
+    # Handle job completion
+  end)
 ```
+
+## Configuration
+
+### Database Setup
+
+TimeOS uses Ecto for database persistence. Configure your database:
+
+```elixir
+# config/dev.exs
+config :timeos, TimeOS.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "timeos_dev",
+  pool_size: 10
+```
+
+### Production Configuration
+
+For production, use environment variables:
+
+```elixir
+# config/prod.exs
+config :timeos, TimeOS.Repo,
+  url: System.get_env("DATABASE_URL"),
+  pool_size: String.to_integer(System.get_env("POOL_SIZE", "20"))
+```
+
+**Environment Variables:**
+- `DATABASE_URL`: PostgreSQL connection string
+- `POOL_SIZE`: Database connection pool size (default: 20)
+- `LOG_LEVEL`: Logging level - `debug`, `info`, `warn`, `error` (default: `info`)
+- `ENABLE_UI`: Enable web UI (default: `false`)
+- `UI_PORT`: Web UI port (default: `4000`)
+
+### Data Cleanup
+
+Prevent database bloat with automatic cleanup:
+
+```elixir
+# config/dev.exs
+config :timeos,
+  enable_cleanup_scheduler: true,
+  cleanup_interval_ms: 24 * 60 * 60 * 1000,  # 24 hours
+  events_retention_days: 90,
+  success_jobs_retention_days: 30,
+  failed_jobs_retention_days: 7
+```
+
+**Manual Cleanup:**
+
+```elixir
+# Clean up with default retention periods
+TimeOS.cleanup()
+
+# Clean up with custom retention periods
+TimeOS.cleanup(
+  events_retention_days: 60,
+  success_jobs_retention_days: 14,
+  failed_jobs_retention_days: 3
+)
+
+# Get cleanup statistics
+stats = TimeOS.cleanup_stats()
+# Returns: %{old_events: 150, old_successful_jobs: 45, ...}
+```
+
+**Note:** Dead letter queue jobs are never automatically cleaned up. You must manually manage them using `TimeOS.delete_dead_letter_job/1`.
 
 ## API Reference
 
@@ -471,8 +463,9 @@ end)
 ```elixir
 # Emit an event
 TimeOS.emit(:event_type, %{"key" => "value"})
-TimeOS.emit(:event_type, %{"key" => "value"}, occurred_at: DateTime.utc_now())
-TimeOS.emit(:event_type, %{"key" => "value"}, idempotency_key: "unique-key")
+TimeOS.emit(:event_type, %{"key" => "value"}, 
+  occurred_at: DateTime.utc_now(), 
+  idempotency_key: "unique-key")
 
 # Batch emit
 TimeOS.emit_batch([
@@ -481,10 +474,8 @@ TimeOS.emit_batch([
 ])
 
 # Query events
-TimeOS.list_events(type: "user_signup", processed: false, limit: 100, offset: 0)
+TimeOS.list_events(type: "user_signup", processed: false, limit: 100)
 TimeOS.get_event(event_id)
-
-# Replay events
 TimeOS.replay_event(event_id)
 ```
 
@@ -492,7 +483,7 @@ TimeOS.replay_event(event_id)
 
 ```elixir
 # List and manage jobs
-TimeOS.list_jobs(status: :pending, limit: 100, rule_id: rule_id, event_id: event_id)
+TimeOS.list_jobs(status: :pending, limit: 100, rule_id: rule_id)
 TimeOS.get_job(job_id)
 TimeOS.cancel_job(job_id)
 TimeOS.cancel_jobs_batch([job_id1, job_id2])
@@ -505,7 +496,11 @@ TimeOS.load_rules_from_module(MyApp.Rules)
 TimeOS.list_rules()
 TimeOS.get_rule(rule_id)
 TimeOS.enable_rule(rule_id, true)
-TimeOS.update_rule(rule_id, %{priority: 10, rate_limit_per_minute: 5})
+TimeOS.update_rule(rule_id, %{
+  priority: 10, 
+  rate_limit_per_minute: 5,
+  concurrency_limit: 3
+})
 TimeOS.delete_rule(rule_id)
 TimeOS.reload_rules()
 ```
@@ -518,36 +513,7 @@ TimeOS.retry_dead_letter_job(job_id)
 TimeOS.delete_dead_letter_job(job_id)
 ```
 
-### Health and Monitoring
-
-```elixir
-# Check system health
-TimeOS.health_check()
-# Returns health status, component checks, and metrics
-
-# Get cleanup statistics
-TimeOS.cleanup_stats()
-# Returns statistics about old data that can be cleaned up
-```
-
-### Data Cleanup
-
-```elixir
-# Manual cleanup with default retention periods
-TimeOS.cleanup()
-
-# Manual cleanup with custom retention periods
-TimeOS.cleanup(
-  events_retention_days: 60,
-  success_jobs_retention_days: 14,
-  failed_jobs_retention_days: 3
-)
-
-# Get cleanup statistics
-TimeOS.cleanup_stats()
-```
-
-## Examples
+## Real-World Examples
 
 ### E-commerce Order Processing
 
@@ -621,130 +587,22 @@ defmodule Maintenance.Rules do
 end
 ```
 
-## Configuration
+## Architecture
 
-TimeOS uses Ecto for database persistence. Configure your database in `config/dev.exs`:
+TimeOS consists of several key components:
 
-```elixir
-config :timeos, TimeOS.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "timeos_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
-
-# Enable web UI (optional)
-config :timeos, enable_ui: true
-config :timeos, ui_port: 4000
-
-# Logging configuration
-config :logger,
-  level: :debug,
-  compile_time_purge_matching: [
-    [level_lower_than: :debug]
-  ]
-
-# Data cleanup configuration (optional)
-config :timeos,
-  enable_cleanup_scheduler: true,
-  cleanup_interval_ms: 24 * 60 * 60 * 1000,  # 24 hours
-  events_retention_days: 90,
-  success_jobs_retention_days: 30,
-  failed_jobs_retention_days: 7
-```
-
-### Production Configuration
-
-For production, use environment variables:
-
-```elixir
-# config/prod.exs (already included)
-# Set DATABASE_URL, POOL_SIZE, LOG_LEVEL, etc. via environment variables
-```
-
-Environment variables:
-- `DATABASE_URL`: PostgreSQL connection string
-- `POOL_SIZE`: Database connection pool size (default: 20)
-- `LOG_LEVEL`: Logging level - `debug`, `info`, `warn`, `error` (default: `info`)
-- `ENABLE_UI`: Enable web UI (default: `false`)
-- `UI_PORT`: Web UI port (default: `4000`)
-
-### Logging Configuration
-
-TimeOS supports configurable logging levels per environment:
-
-- **Development**: `:debug` - Shows all logs including debug information
-- **Test**: `:warn` - Only warnings and errors
-- **Production**: Configurable via `LOG_LEVEL` environment variable (default: `:info`)
-
-Log metadata includes:
-- `job_id`: ID of the job being processed
-- `event_id`: ID of the event being processed
-- `rule_id`: ID of the rule being evaluated
-- `request_id`: Request ID for tracing
-
-### Data Cleanup
-
-TimeOS includes automatic cleanup to prevent database bloat:
-
-**Automatic Cleanup (Scheduled)**
-
-The cleanup scheduler runs periodically (default: every 24 hours) to remove old data:
-
-```elixir
-# Enable/disable automatic cleanup
-config :timeos, enable_cleanup_scheduler: true
-
-# Configure cleanup interval (in milliseconds)
-config :timeos, cleanup_interval_ms: 24 * 60 * 60 * 1000  # 24 hours
-
-# Configure retention periods
-config :timeos,
-  events_retention_days: 90,           # Keep events for 90 days
-  success_jobs_retention_days: 30,     # Keep successful jobs for 30 days
-  failed_jobs_retention_days: 7        # Keep failed jobs for 7 days
-```
-
-**Manual Cleanup**
-
-You can also trigger cleanup manually:
-
-```elixir
-# Clean up all old data with default retention periods
-TimeOS.cleanup()
-
-# Clean up with custom retention periods
-TimeOS.cleanup(
-  events_retention_days: 60,
-  success_jobs_retention_days: 14,
-  failed_jobs_retention_days: 3
-)
-
-# Get statistics about cleanable data
-stats = TimeOS.cleanup_stats()
-# Returns: %{
-#   old_events: 150,
-#   old_successful_jobs: 45,
-#   old_failed_jobs: 3,
-#   total_cleanable: 198
-# }
-
-# Clean up specific types
-TimeOS.Cleanup.cleanup_old_events(90)           # Remove events older than 90 days
-TimeOS.Cleanup.cleanup_old_successful_jobs(30)  # Remove successful jobs older than 30 days
-TimeOS.Cleanup.cleanup_old_failed_jobs(7)      # Remove failed jobs older than 7 days
-```
-
-**Note**: Dead letter queue jobs are never automatically cleaned up. You must manually manage them using `TimeOS.delete_dead_letter_job/1`.
-
-### Graceful Shutdown
-
-TimeOS automatically handles graceful shutdown:
-- Waits for in-flight jobs to complete (up to 5 seconds)
-- Reverts running jobs to pending status if worker crashes
-- Logs warnings for jobs still running after grace period
+- **Evaluator**: Matches events against rules and creates scheduled jobs
+- **Scheduler**: Polls for due jobs and spawns workers, checks dependencies and limits
+- **JobWorker**: Executes jobs with retry logic, timeout handling, and graceful shutdown
+- **RuleRegistry**: Manages rules and performer callbacks
+- **RateLimiter**: Enforces rate limits using token bucket algorithm
+- **ConcurrencyTracker**: Tracks and enforces per-rule concurrency limits
+- **CronParser**: Parses and calculates next execution times for cron expressions
+- **EventReceiver**: Receives and forwards events to the evaluator
+- **Health**: Monitors system health and component status
+- **Telemetry**: Tracks events and job lifecycle for observability
+- **Web**: Provides web UI for job monitoring (optional)
+- **Cleanup**: Automatic and manual data cleanup to prevent database bloat
 
 ## Testing
 
@@ -754,19 +612,7 @@ Run the test suite:
 mix test
 ```
 
-TimeOS includes comprehensive tests for all features including:
-- Event emission and rule matching
-- Job scheduling and execution
-- Dead letter queue
-- Rate limiting
-- Timezone handling
-- Cron parsing
-- Event deduplication
-- Job dependencies
-- Batch operations
-- Health checks
-- Data cleanup
-- Integration tests
+TimeOS includes comprehensive tests for all features including event emission, rule matching, job scheduling, dead letter queue, rate limiting, timezone handling, cron parsing, event deduplication, job dependencies, batch operations, health checks, data cleanup, timeouts, concurrency limits, and integration tests.
 
 ## Documentation
 
@@ -776,27 +622,14 @@ Generate documentation using ExDoc:
 mix docs
 ```
 
-This will generate HTML documentation in the `doc/` directory. The documentation includes:
-- Complete API reference
-- Module grouping by category (Core, Runtime, Schema, Utilities, Web)
-- Code examples and usage patterns
+This generates HTML documentation in the `doc/` directory with complete API reference, module grouping by category, and code examples.
 
-## Architecture
+## Graceful Shutdown
 
-TimeOS consists of several key components:
-
-- **Evaluator**: Matches events against rules and creates scheduled jobs
-- **Scheduler**: Polls for due jobs and spawns workers, checks dependencies
-- **JobWorker**: Executes jobs with retry logic and graceful shutdown handling
-- **RuleRegistry**: Manages rules and performer callbacks
-- **RateLimiter**: Enforces rate limits using token bucket algorithm
-- **CronParser**: Parses and calculates next execution times for cron expressions
-- **EventReceiver**: Receives and forwards events to the evaluator
-- **Health**: Monitors system health and component status
-- **Telemetry**: Tracks events and job lifecycle for observability
-- **Web**: Provides web UI for job monitoring (optional)
-- **Cleanup**: Automatic and manual data cleanup to prevent database bloat
-- **CleanupScheduler**: Periodically runs cleanup tasks
+TimeOS automatically handles graceful shutdown:
+- Waits for in-flight jobs to complete (up to 5 seconds)
+- Reverts running jobs to pending status if worker crashes
+- Logs warnings for jobs still running after grace period
 
 ## Contributing
 
