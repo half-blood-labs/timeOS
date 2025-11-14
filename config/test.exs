@@ -10,3 +10,9 @@ config :timeos, TimeOS.Repo,
   pool_size: 1
 
 config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+
+config :logger,
+  level: :warn,
+  compile_time_purge_matching: [
+    [level_lower_than: :warn]
+  ]
