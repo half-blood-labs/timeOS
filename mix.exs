@@ -29,6 +29,7 @@ defmodule Timeos.MixProject do
       {:ecto_sql, "~> 3.10"},
       {:postgrex, "~> 0.17"},
       {:jason, "~> 1.4"},
+      {:tzdata, "~> 1.1"},
       {:ex_doc, "~> 0.30", only: :dev},
       {:ex_machina, "~> 2.7", only: :test},
       {:mock, "~> 0.3", only: :test}

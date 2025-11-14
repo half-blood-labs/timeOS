@@ -23,6 +23,7 @@ defmodule RuleManagementTest do
       rule1 = insert(:time_rule)
       rule2 = insert(:time_rule)
 
+      TimeOS.reload_rules()
       rules = TimeOS.list_rules()
 
       assert length(rules) >= 2
@@ -33,6 +34,7 @@ defmodule RuleManagementTest do
     test "get_rule returns rule by id" do
       rule = insert(:time_rule)
 
+      TimeOS.reload_rules()
       found = TimeOS.get_rule(rule.id)
 
       assert found.id == rule.id

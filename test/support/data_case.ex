@@ -23,6 +23,18 @@ defmodule TimeOS.DataCase do
       Ecto.Adapters.SQL.Sandbox.mode(TimeOS.Repo, {:shared, self()})
     end
 
+    if Process.whereis(TimeOS.RuleRegistry) do
+      Ecto.Adapters.SQL.Sandbox.allow(TimeOS.Repo, Process.whereis(TimeOS.RuleRegistry), self())
+    end
+
+    if Process.whereis(TimeOS.Evaluator) do
+      Ecto.Adapters.SQL.Sandbox.allow(TimeOS.Repo, Process.whereis(TimeOS.Evaluator), self())
+    end
+
+    if Process.whereis(TimeOS.Scheduler) do
+      Ecto.Adapters.SQL.Sandbox.allow(TimeOS.Repo, Process.whereis(TimeOS.Scheduler), self())
+    end
+
     :ok
   end
 end

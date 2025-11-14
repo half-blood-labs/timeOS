@@ -8,3 +8,5 @@ config :timeos, TimeOS.Repo,
   port: 5432,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 1
+
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
