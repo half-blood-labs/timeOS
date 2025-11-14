@@ -8,6 +8,7 @@ defmodule TimeOS.Web do
   import Plug.Conn
 
   plug(Plug.Logger)
+  plug(:authenticate)
   plug(:match)
   plug(:dispatch)
 
@@ -15,6 +16,59 @@ defmodule TimeOS.Web do
     port = Application.get_env(:timeos, :ui_port, 4000)
     Logger.info("Starting TimeOS UI on port #{port}")
     Plug.Cowboy.http(__MODULE__, [], port: port)
+  end
+
+  defp authenticate(conn, _opts) do
+    # Check if authentication is enabled
+    auth_enabled = Application.get_env(:timeos, :ui_auth_enabled, false)
+
+    if auth_enabled do
+      # Check for Basic Auth or API key
+      case get_req_header(conn, "authorization") do
+        ["Basic " <> encoded] ->
+          case Base.decode64(encoded) do
+            {:ok, credentials} ->
+              [username, password] = String.split(credentials, ":", parts: 2)
+              expected_user = Application.get_env(:timeos, :ui_username, "admin")
+              expected_pass = Application.get_env(:timeos, :ui_password, "admin")
+
+              if username == expected_user && password == expected_pass do
+                conn
+              else
+                conn
+                |> put_resp_header("www-authenticate", "Basic realm=\"TimeOS\"")
+                |> send_resp(401, "Unauthorized")
+                |> halt()
+              end
+
+            _ ->
+              conn
+              |> put_resp_header("www-authenticate", "Basic realm=\"TimeOS\"")
+              |> send_resp(401, "Unauthorized")
+              |> halt()
+          end
+
+        ["Bearer " <> api_key] ->
+          expected_key = Application.get_env(:timeos, :ui_api_key)
+
+          if api_key == expected_key do
+            conn
+          else
+            conn
+            |> send_resp(401, "Unauthorized")
+            |> halt()
+          end
+
+        _ ->
+          conn
+          |> put_resp_header("www-authenticate", "Basic realm=\"TimeOS\"")
+          |> send_resp(401, "Unauthorized")
+          |> halt()
+      end
+    else
+      # Authentication disabled, allow all
+      conn
+    end
   end
 
   get "/" do
