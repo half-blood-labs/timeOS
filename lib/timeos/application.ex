@@ -1,6 +1,4 @@
 defmodule Timeos.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
   @moduledoc false
 
   use Application
@@ -13,11 +11,10 @@ defmodule Timeos.Application do
       TimeOS.EventReceiver,
       TimeOS.Evaluator,
       TimeOS.Scheduler,
+      TimeOS.RateLimiter,
       {DynamicSupervisor, strategy: :one_for_one, name: TimeOS.WorkerSupervisor}
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Timeos.Supervisor]
     Supervisor.start_link(children, opts)
   end
