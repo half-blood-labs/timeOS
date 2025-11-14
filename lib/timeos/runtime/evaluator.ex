@@ -31,7 +31,12 @@ defmodule TimeOS.Evaluator do
       case match_rule(rule, event) do
         {:ok, jobs} ->
           Enum.each(jobs, &persist_job/1)
-          TimeOS.Telemetry.emit_event(:rule, :matched, %{job_count: length(jobs)}, %{rule_id: rule.id, event_id: event.id})
+
+          TimeOS.Telemetry.emit_event(:rule, :matched, %{job_count: length(jobs)}, %{
+            rule_id: rule.id,
+            event_id: event.id
+          })
+
           Logger.info("Matched #{length(jobs)} jobs for rule #{rule.name}")
 
         :no_match ->
@@ -94,32 +99,35 @@ defmodule TimeOS.Evaluator do
 
     actions = Map.get(compiled, "actions", [])
 
-    jobs = Enum.map(actions, fn action ->
-      {action_name, action_opts} = extract_action_info(action)
+    jobs =
+      Enum.map(actions, fn action ->
+        {action_name, action_opts} = extract_action_info(action)
 
-      rate_limit_key = generate_rate_limit_key(rule, action_name)
-      depends_on_job_id = if is_map(action_opts), do: Map.get(action_opts, "depends_on_job_id"), else: nil
+        rate_limit_key = generate_rate_limit_key(rule, action_name)
 
-      %{
-        rule_id: rule.id,
-        event_id: event.id,
-        perform_at: perform_at,
-        status: :pending,
-        max_attempts: 3,
-        attempt_count: 0,
-        priority: rule.priority || 0,
-        timezone: rule.timezone,
-        rate_limit_key: rate_limit_key,
-        depends_on_job_id: depends_on_job_id,
-        args: %{
-          "action" => normalize_action_name(action_name),
-          "opts" => action_opts || [],
-          "event_type" => event.type,
-          "payload" => event.payload
-        },
-        idempotency_key: generate_idempotency_key(rule.id, event.id, action_name)
-      }
-    end)
+        depends_on_job_id =
+          if is_map(action_opts), do: Map.get(action_opts, "depends_on_job_id"), else: nil
+
+        %{
+          rule_id: rule.id,
+          event_id: event.id,
+          perform_at: perform_at,
+          status: :pending,
+          max_attempts: 3,
+          attempt_count: 0,
+          priority: rule.priority || 0,
+          timezone: rule.timezone,
+          rate_limit_key: rate_limit_key,
+          depends_on_job_id: depends_on_job_id,
+          args: %{
+            "action" => normalize_action_name(action_name),
+            "opts" => action_opts || [],
+            "event_type" => event.type,
+            "payload" => event.payload
+          },
+          idempotency_key: generate_idempotency_key(rule.id, event.id, action_name)
+        }
+      end)
 
     {:ok, jobs}
   end
@@ -166,7 +174,11 @@ defmodule TimeOS.Evaluator do
 
     case Repo.insert(changeset, on_conflict: :nothing) do
       {:ok, job} ->
-        TimeOS.Telemetry.emit_event(:job, :created, %{count: 1}, %{job_id: job.id, rule_id: job.rule_id})
+        TimeOS.Telemetry.emit_event(:job, :created, %{count: 1}, %{
+          job_id: job.id,
+          rule_id: job.rule_id
+        })
+
         Logger.debug("Scheduled job: #{job.id}")
 
       {:error, reason} ->

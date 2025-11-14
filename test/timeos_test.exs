@@ -105,7 +105,8 @@ defmodule TimeOSTest do
     test "mark_running updates status and increments attempt count" do
       job = insert(:scheduled_job, status: :pending, attempt_count: 2)
 
-      updated = job
+      updated =
+        job
         |> TimeOS.Schema.ScheduledJob.mark_running()
         |> Repo.update!()
 
@@ -116,7 +117,8 @@ defmodule TimeOSTest do
     test "mark_success sets status to success and clears error" do
       job = insert(:scheduled_job, status: :running, last_error: "Previous error")
 
-      updated = job
+      updated =
+        job
         |> TimeOS.Schema.ScheduledJob.mark_success()
         |> Repo.update!()
 

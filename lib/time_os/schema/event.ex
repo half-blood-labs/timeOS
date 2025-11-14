@@ -4,11 +4,11 @@ defmodule TimeOS.Schema.Event do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "events" do
-    field :type, :string
-    field :payload, :map
-    field :occurred_at, :utc_datetime_usec
-    field :processed, :boolean, default: false
-    field :idempotency_key, :string
+    field(:type, :string)
+    field(:payload, :map)
+    field(:occurred_at, :utc_datetime_usec)
+    field(:processed, :boolean, default: false)
+    field(:idempotency_key, :string)
     timestamps()
   end
 

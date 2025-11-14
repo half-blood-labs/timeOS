@@ -20,6 +20,7 @@ defmodule TimeOS.DataCase do
     case Process.whereis(TimeOS.Repo) do
       nil ->
         {:ok, _} = Application.ensure_all_started(:timeos)
+
       _ ->
         :ok
     end

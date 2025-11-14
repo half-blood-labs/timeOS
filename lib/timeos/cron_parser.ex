@@ -10,13 +10,16 @@ defmodule TimeOS.CronParser do
     case length(parts) do
       5 ->
         [minute, hour, day_of_month, month, day_of_week] = parts
-        {:ok, %{
-          minute: parse_field(minute, 0..59),
-          hour: parse_field(hour, 0..23),
-          day_of_month: parse_field(day_of_month, 1..31),
-          month: parse_field(month, 1..12),
-          day_of_week: parse_field(day_of_week, 0..6)
-        }}
+
+        {:ok,
+         %{
+           minute: parse_field(minute, 0..59),
+           hour: parse_field(hour, 0..23),
+           day_of_month: parse_field(day_of_month, 1..31),
+           month: parse_field(month, 1..12),
+           day_of_week: parse_field(day_of_week, 0..6)
+         }}
+
       _ ->
         {:error, :invalid_format}
     end
@@ -28,16 +31,19 @@ defmodule TimeOS.CronParser do
     case parse(cron_expr) do
       {:ok, schedule} ->
         calculate_next(schedule, from_time)
+
       error ->
         error
     end
   end
 
   defp parse_field("*", _range), do: :all
+
   defp parse_field(field, range) when is_binary(field) do
     case Integer.parse(field) do
       {num, ""} ->
         if num in range, do: {:value, num}, else: {:error, :out_of_range}
+
       _ ->
         {:error, :invalid}
     end
@@ -88,10 +94,10 @@ defmodule TimeOS.CronParser do
 
   defp matches?(schedule, datetime) do
     matches_field?(schedule.minute, datetime.minute) and
-    matches_field?(schedule.hour, datetime.hour) and
-    matches_field?(schedule.day_of_month, datetime.day) and
-    matches_field?(schedule.month, datetime.month) and
-    matches_field?(schedule.day_of_week, day_of_week(datetime))
+      matches_field?(schedule.hour, datetime.hour) and
+      matches_field?(schedule.day_of_month, datetime.day) and
+      matches_field?(schedule.month, datetime.month) and
+      matches_field?(schedule.day_of_week, day_of_week(datetime))
   end
 
   defp matches_field?(:all, _), do: true

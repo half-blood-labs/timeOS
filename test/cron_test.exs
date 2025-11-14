@@ -56,7 +56,7 @@ defmodule CronTest do
         use TimeOS.DSL.RuleSet
 
         every_monday do
-          perform :weekly_report
+          perform(:weekly_report)
         end
       end
 
@@ -72,7 +72,7 @@ defmodule CronTest do
         use TimeOS.DSL.RuleSet
 
         every_monday at: "09:00" do
-          perform :send_newsletter
+          perform(:send_newsletter)
         end
       end
 
@@ -87,7 +87,7 @@ defmodule CronTest do
         use TimeOS.DSL.RuleSet
 
         every_tuesday do
-          perform :task
+          perform(:task)
         end
       end
 

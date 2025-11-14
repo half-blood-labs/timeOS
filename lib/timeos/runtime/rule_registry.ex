@@ -16,20 +16,22 @@ defmodule TimeOS.RuleRegistry do
 
   @impl true
   def init(_) do
-    {:ok, %{
-      rules: [],
-      performers: %{},
-      rule_index: %{},
-      when_clauses: %{}
-    }, {:continue, :load_rules}}
+    {:ok,
+     %{
+       rules: [],
+       performers: %{},
+       rule_index: %{},
+       when_clauses: %{}
+     }, {:continue, :load_rules}}
   end
 
   @impl true
   def handle_continue(:load_rules, state) do
-    rules = case Repo.all(from tr in TimeRule, where: tr.enabled == true) do
-      rules when is_list(rules) -> rules
-      _ -> []
-    end
+    rules =
+      case Repo.all(from(tr in TimeRule, where: tr.enabled == true)) do
+        rules when is_list(rules) -> rules
+        _ -> []
+      end
 
     new_state = %{state | rules: rules}
     Logger.info("Loaded #{length(rules)} rules from DB")
@@ -69,16 +71,14 @@ defmodule TimeOS.RuleRegistry do
 
     case Repo.insert(changeset) do
       {:ok, rule} ->
-        when_clauses = if when_clause != nil do
-          Map.put(state.when_clauses, rule.id, when_clause)
-        else
-          state.when_clauses
-        end
+        when_clauses =
+          if when_clause != nil do
+            Map.put(state.when_clauses, rule.id, when_clause)
+          else
+            state.when_clauses
+          end
 
-        new_state = %{state |
-          rules: [rule | state.rules],
-          when_clauses: when_clauses
-        }
+        new_state = %{state | rules: [rule | state.rules], when_clauses: when_clauses}
         Logger.info("Added rule: #{rule.name}")
         {:reply, {:ok, rule}, new_state}
 
@@ -101,7 +101,7 @@ defmodule TimeOS.RuleRegistry do
 
   @impl true
   def handle_call({:reload_rules}, _from, state) do
-    rules = Repo.all(from tr in TimeRule, where: tr.enabled == true)
+    rules = Repo.all(from(tr in TimeRule, where: tr.enabled == true))
     new_state = %{state | rules: rules}
     Logger.info("Reloaded #{length(rules)} rules from DB")
     {:reply, :ok, new_state}
@@ -118,9 +118,11 @@ defmodule TimeOS.RuleRegistry do
 
         case Repo.update(changeset) do
           {:ok, updated_rule} ->
-            new_rules = Enum.map(state.rules, fn r ->
-              if r.id == rule_id, do: updated_rule, else: r
-            end)
+            new_rules =
+              Enum.map(state.rules, fn r ->
+                if r.id == rule_id, do: updated_rule, else: r
+              end)
+
             new_state = %{state | rules: new_rules}
             Logger.info("Updated rule: #{updated_rule.name}")
             {:reply, {:ok, updated_rule}, new_state}
@@ -143,10 +145,7 @@ defmodule TimeOS.RuleRegistry do
           {:ok, _} ->
             new_rules = Enum.reject(state.rules, &(&1.id == rule_id))
             new_when_clauses = Map.delete(state.when_clauses, rule_id)
-            new_state = %{state |
-              rules: new_rules,
-              when_clauses: new_when_clauses
-            }
+            new_state = %{state | rules: new_rules, when_clauses: new_when_clauses}
             Logger.info("Deleted rule: #{rule.name}")
             {:reply, :ok, new_state}
 

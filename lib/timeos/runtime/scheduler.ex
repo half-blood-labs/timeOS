@@ -88,14 +88,25 @@ defmodule TimeOS.Scheduler do
   defp check_rate_limit(job) do
     if job.rate_limit_key do
       rule = TimeOS.RuleRegistry.get_rule_by_id(job.rule_id)
+
       if rule && rule.rate_limit_per_minute do
         case TimeOS.RateLimiter.check_rate_limit(job.rate_limit_key, rule.rate_limit_per_minute) do
-          {:ok, :allowed} -> true
+          {:ok, :allowed} ->
+            true
+
           {:error, :rate_limited, wait_seconds} ->
-            TimeOS.Telemetry.emit_event(:rate_limit, :exceeded, %{count: 1, wait_seconds: wait_seconds}, %{job_id: job.id})
+            TimeOS.Telemetry.emit_event(
+              :rate_limit,
+              :exceeded,
+              %{count: 1, wait_seconds: wait_seconds},
+              %{job_id: job.id}
+            )
+
             Logger.debug("Job #{job.id} rate limited, waiting #{wait_seconds}s")
             false
-          _ -> true
+
+          _ ->
+            true
         end
       else
         true
@@ -107,9 +118,9 @@ defmodule TimeOS.Scheduler do
 
   defp spawn_worker(job) do
     case DynamicSupervisor.start_child(
-      TimeOS.WorkerSupervisor,
-      {TimeOS.JobWorker, job}
-    ) do
+           TimeOS.WorkerSupervisor,
+           {TimeOS.JobWorker, job}
+         ) do
       {:ok, _pid} ->
         TimeOS.Telemetry.emit_event(:job, :started, %{count: 1}, %{job_id: job.id})
         Logger.info("Spawned worker for job #{job.id}")
@@ -135,10 +146,11 @@ defmodule TimeOS.Scheduler do
     rules = TimeOS.RuleRegistry.get_rules()
     now = DateTime.utc_now()
 
-    every_rules = Enum.filter(rules, fn rule ->
-      compiled = rule.compiled
-      Map.get(compiled, "type") == "every" and rule.enabled
-    end)
+    every_rules =
+      Enum.filter(rules, fn rule ->
+        compiled = rule.compiled
+        Map.get(compiled, "type") == "every" and rule.enabled
+      end)
 
     Enum.each(every_rules, fn rule ->
       schedule_every_rule_jobs(rule, now)
@@ -149,9 +161,10 @@ defmodule TimeOS.Scheduler do
     rules = TimeOS.RuleRegistry.get_rules()
     now = DateTime.utc_now()
 
-    cron_rules = Enum.filter(rules, fn rule ->
-      rule.cron_expression && rule.enabled
-    end)
+    cron_rules =
+      Enum.filter(rules, fn rule ->
+        rule.cron_expression && rule.enabled
+      end)
 
     Enum.each(cron_rules, fn rule ->
       schedule_cron_rule_jobs(rule, now)
@@ -172,17 +185,21 @@ defmodule TimeOS.Scheduler do
 
     last_job = Repo.one(query)
 
-    should_create = case last_job do
-      nil -> true
-      job ->
-        DateTime.diff(now, job.perform_at, :millisecond) >= interval_ms
-    end
+    should_create =
+      case last_job do
+        nil ->
+          true
+
+        job ->
+          DateTime.diff(now, job.perform_at, :millisecond) >= interval_ms
+      end
 
     if should_create do
-      base_time = case last_job do
-        nil -> now
-        job -> job.perform_at
-      end
+      base_time =
+        case last_job do
+          nil -> now
+          job -> job.perform_at
+        end
 
       next_perform_at = calculate_next_interval(base_time, interval_ms, now)
       next_perform_at = apply_timezone(next_perform_at, rule.timezone)
@@ -284,6 +301,7 @@ defmodule TimeOS.Scheduler do
   end
 
   defp apply_timezone(datetime, nil), do: datetime
+
   defp apply_timezone(datetime, timezone) do
     case TimeOS.TimezoneUtils.to_timezone(datetime, timezone) do
       {:ok, dt} -> TimeOS.TimezoneUtils.to_utc(dt) |> elem(1)
@@ -298,7 +316,7 @@ defmodule TimeOS.Scheduler do
     elapsed = now_ms - base_ms
     intervals_passed = div(elapsed, interval_ms) + 1
 
-    next_ms = base_ms + (intervals_passed * interval_ms)
+    next_ms = base_ms + intervals_passed * interval_ms
     DateTime.from_unix!(next_ms, :millisecond)
   end
 
@@ -324,6 +342,7 @@ defmodule TimeOS.Scheduler do
 
   defp generate_idempotency_key(rule_id, event_id, action_name, perform_at) do
     key = "#{rule_id}#{event_id || "every"}#{action_name}#{DateTime.to_iso8601(perform_at)}"
+
     :crypto.hash(:sha256, key)
     |> Base.encode16(case: :lower)
   end

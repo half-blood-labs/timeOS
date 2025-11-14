@@ -55,7 +55,10 @@ defmodule TimeOS.Telemetry do
 
   defp log_metric(name, measurements, metadata) do
     require Logger
-    Logger.debug("Telemetry: #{name} - measurements: #{inspect(measurements)}, metadata: #{inspect(metadata)}")
+
+    Logger.debug(
+      "Telemetry: #{name} - measurements: #{inspect(measurements)}, metadata: #{inspect(metadata)}"
+    )
   end
 
   def emit_event(category, name, measurements \\ %{}, metadata \\ %{}) do

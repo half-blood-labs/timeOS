@@ -5,13 +5,15 @@ defmodule DeadLetterQueueTest do
 
   describe "Dead letter queue" do
     test "job moves to dead letter queue after max attempts" do
-      job = insert(:scheduled_job,
-        status: :running,
-        attempt_count: 3,
-        max_attempts: 3
-      )
+      job =
+        insert(:scheduled_job,
+          status: :running,
+          attempt_count: 3,
+          max_attempts: 3
+        )
 
-      updated = job
+      updated =
+        job
         |> ScheduledJob.mark_dead_letter("Max retries exceeded")
         |> Repo.update!()
 
@@ -49,11 +51,12 @@ defmodule DeadLetterQueueTest do
     end
 
     test "retry_dead_letter_job moves job back to pending" do
-      job = insert(:scheduled_job,
-        status: :dead,
-        dead_letter_queue: true,
-        attempt_count: 3
-      )
+      job =
+        insert(:scheduled_job,
+          status: :dead,
+          dead_letter_queue: true,
+          attempt_count: 3
+        )
 
       {:ok, retried} = TimeOS.retry_dead_letter_job(job.id)
 

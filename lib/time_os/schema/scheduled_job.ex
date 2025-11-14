@@ -5,28 +5,50 @@ defmodule TimeOS.Schema.ScheduledJob do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "scheduled_jobs" do
-    field :rule_id, :binary_id
-    field :event_id, :binary_id
-    field :perform_at, :utc_datetime_usec
-    field :attempt_count, :integer, default: 0
-    field :max_attempts, :integer, default: 3
-    field :status, Ecto.Enum, values: [:pending, :running, :success, :failed, :dead], default: :pending
-    field :args, :map
-    field :last_error, :string
-    field :idempotency_key, :string
-    field :priority, :integer, default: 0
-    field :timezone, :string
-    field :rate_limit_key, :string
-    field :dead_letter_queue, :boolean, default: false
-    field :dead_letter_at, :utc_datetime_usec
-    field :depends_on_job_id, :binary_id
-    field :result, :map
+    field(:rule_id, :binary_id)
+    field(:event_id, :binary_id)
+    field(:perform_at, :utc_datetime_usec)
+    field(:attempt_count, :integer, default: 0)
+    field(:max_attempts, :integer, default: 3)
+
+    field(:status, Ecto.Enum,
+      values: [:pending, :running, :success, :failed, :dead],
+      default: :pending
+    )
+
+    field(:args, :map)
+    field(:last_error, :string)
+    field(:idempotency_key, :string)
+    field(:priority, :integer, default: 0)
+    field(:timezone, :string)
+    field(:rate_limit_key, :string)
+    field(:dead_letter_queue, :boolean, default: false)
+    field(:dead_letter_at, :utc_datetime_usec)
+    field(:depends_on_job_id, :binary_id)
+    field(:result, :map)
     timestamps()
   end
 
   def changeset(job, attrs) do
     job
-    |> cast(attrs, [:rule_id, :event_id, :perform_at, :attempt_count, :max_attempts, :status, :args, :last_error, :idempotency_key, :priority, :timezone, :rate_limit_key, :dead_letter_queue, :dead_letter_at, :depends_on_job_id, :result])
+    |> cast(attrs, [
+      :rule_id,
+      :event_id,
+      :perform_at,
+      :attempt_count,
+      :max_attempts,
+      :status,
+      :args,
+      :last_error,
+      :idempotency_key,
+      :priority,
+      :timezone,
+      :rate_limit_key,
+      :dead_letter_queue,
+      :dead_letter_at,
+      :depends_on_job_id,
+      :result
+    ])
     |> validate_required([:rule_id, :perform_at])
     |> unique_constraint(:idempotency_key, name: :scheduled_jobs_idempotency_key_unique)
   end

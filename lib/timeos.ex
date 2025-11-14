@@ -32,7 +32,11 @@ defmodule TimeOS do
         nil ->
           case Repo.insert(event_changeset) do
             {:ok, event} ->
-              TimeOS.Telemetry.emit_event(:event, :emitted, %{count: 1}, %{event_type: event.type, event_id: event.id})
+              TimeOS.Telemetry.emit_event(:event, :emitted, %{count: 1}, %{
+                event_type: event.type,
+                event_id: event.id
+              })
+
               TimeOS.EventReceiver.receive_event(event)
               {:ok, event.id}
 
@@ -46,7 +50,11 @@ defmodule TimeOS do
     else
       case Repo.insert(event_changeset) do
         {:ok, event} ->
-          TimeOS.Telemetry.emit_event(:event, :emitted, %{count: 1}, %{event_type: event.type, event_id: event.id})
+          TimeOS.Telemetry.emit_event(:event, :emitted, %{count: 1}, %{
+            event_type: event.type,
+            event_id: event.id
+          })
+
           TimeOS.EventReceiver.receive_event(event)
           {:ok, event.id}
 
@@ -85,17 +93,19 @@ defmodule TimeOS do
   def list_events(filters \\ []) do
     query = from(e in Event)
 
-    query = if type = Keyword.get(filters, :type) do
-      query |> where([e], e.type == ^type)
-    else
-      query
-    end
+    query =
+      if type = Keyword.get(filters, :type) do
+        query |> where([e], e.type == ^type)
+      else
+        query
+      end
 
-    query = if processed = Keyword.get(filters, :processed) do
-      query |> where([e], e.processed == ^processed)
-    else
-      query
-    end
+    query =
+      if processed = Keyword.get(filters, :processed) do
+        query |> where([e], e.processed == ^processed)
+      else
+        query
+      end
 
     limit = Keyword.get(filters, :limit, 100)
     offset = Keyword.get(filters, :offset, 0)
@@ -156,6 +166,7 @@ defmodule TimeOS do
 
               pid ->
                 GenServer.stop(pid, :shutdown)
+
                 job
                 |> ScheduledJob.mark_dead("Cancelled by user")
                 |> Repo.update()
@@ -255,11 +266,14 @@ defmodule TimeOS do
   def load_rules_from_module(module) when is_atom(module) do
     if Code.ensure_loaded?(module) and function_exported?(module, :__timeos_rules__, 0) do
       rules = module.__timeos_rules__()
-      when_clauses = if function_exported?(module, :__timeos_when_clauses__, 0) do
-        module.__timeos_when_clauses__()
-      else
-        List.duplicate(nil, length(rules))
-      end
+
+      when_clauses =
+        if function_exported?(module, :__timeos_when_clauses__, 0) do
+          module.__timeos_when_clauses__()
+        else
+          List.duplicate(nil, length(rules))
+        end
+
       module_name = inspect(module)
 
       Enum.zip([rules, when_clauses])
@@ -329,16 +343,18 @@ defmodule TimeOS do
   List jobs in dead letter queue.
   """
   def list_dead_letter_jobs(filters \\ []) do
-    query = from(j in ScheduledJob,
-      where: j.dead_letter_queue == true,
-      order_by: [desc: :dead_letter_at]
-    )
+    query =
+      from(j in ScheduledJob,
+        where: j.dead_letter_queue == true,
+        order_by: [desc: :dead_letter_at]
+      )
 
-    query = if rule_id = Keyword.get(filters, :rule_id) do
-      query |> where([j], j.rule_id == ^rule_id)
-    else
-      query
-    end
+    query =
+      if rule_id = Keyword.get(filters, :rule_id) do
+        query |> where([j], j.rule_id == ^rule_id)
+      else
+        query
+      end
 
     limit = Keyword.get(filters, :limit, 100)
     query |> limit(^limit) |> Repo.all()

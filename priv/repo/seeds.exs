@@ -98,7 +98,7 @@ defmodule TimeOS.Seeds do
 
   defp create_events do
     now = DateTime.utc_now()
-    
+
     events = [
       %{
         type: "user_signup",
@@ -156,7 +156,7 @@ defmodule TimeOS.Seeds do
   defp create_jobs do
     rules = Repo.all(TimeRule)
     events = Repo.all(Event)
-    
+
     now = DateTime.utc_now()
     user_signup_rule = Enum.find(rules, &(&1.name == "user_signup_welcome_email"))
     payment_rule = Enum.find(rules, &(&1.name == "payment_reminder"))
@@ -293,7 +293,7 @@ defmodule TimeOS.Seeds do
 
     jobs = if report_rule do
       next_monday = calculate_next_monday(now)
-      
+
       jobs ++ [
         %{
           rule_id: report_rule.id,
@@ -350,13 +350,13 @@ defmodule TimeOS.Seeds do
   defp calculate_next_monday(now) do
     day_of_week = Date.day_of_week(DateTime.to_date(now))
     days_until_monday = if day_of_week == 1, do: 7, else: 8 - day_of_week
-    
+
     next_monday_date = now
     |> DateTime.to_date()
     |> Date.add(days_until_monday)
-    
+
     next_monday = DateTime.new!(next_monday_date, ~T[09:00:00], "Etc/UTC")
-    
+
     case TimeOS.TimezoneUtils.to_timezone(next_monday, "America/New_York") do
       {:ok, ny_time} ->
         case TimeOS.TimezoneUtils.to_utc(ny_time) do
@@ -369,4 +369,3 @@ defmodule TimeOS.Seeds do
 end
 
 TimeOS.Seeds.run()
-

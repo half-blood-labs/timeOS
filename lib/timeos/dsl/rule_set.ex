@@ -163,7 +163,8 @@ defmodule TimeOS.DSL.RuleSet do
   defmacro __before_compile__(env) do
     rules = Module.get_attribute(env.module, :timeos_rules, [])
 
-    compiled_rules = rules
+    compiled_rules =
+      rules
       |> Enum.reverse()
       |> Enum.map(&compile_rule/1)
 
@@ -182,6 +183,7 @@ defmodule TimeOS.DSL.RuleSet do
     Enum.map(rules, fn
       {:on_event, _event_type, opts, _block} ->
         Keyword.get(opts, :when, nil)
+
       _ ->
         nil
     end)
@@ -191,13 +193,14 @@ defmodule TimeOS.DSL.RuleSet do
     offset_ms = Keyword.get(opts, :offset, 0)
     when_pred = Keyword.get(opts, :when, nil)
 
-    actions = extract_actions(block)
-    |> Enum.map(fn {:perform, action, opts} ->
-      %{
-        "action" => normalize_for_json(action),
-        "opts" => normalize_for_json(opts)
-      }
-    end)
+    actions =
+      extract_actions(block)
+      |> Enum.map(fn {:perform, action, opts} ->
+        %{
+          "action" => normalize_for_json(action),
+          "opts" => normalize_for_json(opts)
+        }
+      end)
 
     event_type_str = normalize_event_type_for_json(event_type)
 
@@ -216,13 +219,14 @@ defmodule TimeOS.DSL.RuleSet do
   end
 
   defp compile_rule({:every, interval, opts, block}) do
-    actions = extract_actions(block)
-    |> Enum.map(fn {:perform, action, opts} ->
-      %{
-        "action" => normalize_for_json(action),
-        "opts" => normalize_for_json(opts)
-      }
-    end)
+    actions =
+      extract_actions(block)
+      |> Enum.map(fn {:perform, action, opts} ->
+        %{
+          "action" => normalize_for_json(action),
+          "opts" => normalize_for_json(opts)
+        }
+      end)
 
     compiled = %{
       "type" => "every",
@@ -238,13 +242,14 @@ defmodule TimeOS.DSL.RuleSet do
   end
 
   defp compile_rule({:cron, cron_expr, opts, block}) do
-    actions = extract_actions(block)
-    |> Enum.map(fn {:perform, action, opts} ->
-      %{
-        "action" => normalize_for_json(action),
-        "opts" => normalize_for_json(opts)
-      }
-    end)
+    actions =
+      extract_actions(block)
+      |> Enum.map(fn {:perform, action, opts} ->
+        %{
+          "action" => normalize_for_json(action),
+          "opts" => normalize_for_json(opts)
+        }
+      end)
 
     %{
       "type" => "cron",
@@ -270,6 +275,7 @@ defmodule TimeOS.DSL.RuleSet do
     case String.split(time_str, ":") do
       [h, m] ->
         {String.to_integer(h), String.to_integer(m)}
+
       _ ->
         {0, 0}
     end
@@ -277,10 +283,15 @@ defmodule TimeOS.DSL.RuleSet do
 
   defp normalize_for_json(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_for_json(value) when is_list(value), do: Enum.map(value, &normalize_for_json/1)
-  defp normalize_for_json(value) when is_map(value), do: Map.new(value, fn {k, v} -> {normalize_for_json(k), normalize_for_json(v)} end)
+
+  defp normalize_for_json(value) when is_map(value),
+    do: Map.new(value, fn {k, v} -> {normalize_for_json(k), normalize_for_json(v)} end)
+
   defp normalize_for_json(value), do: value
 
-  defp normalize_event_type_for_json(event_type) when is_atom(event_type), do: Atom.to_string(event_type)
+  defp normalize_event_type_for_json(event_type) when is_atom(event_type),
+    do: Atom.to_string(event_type)
+
   defp normalize_event_type_for_json(event_type) when is_binary(event_type), do: event_type
   defp normalize_event_type_for_json(_), do: ""
 
@@ -288,6 +299,7 @@ defmodule TimeOS.DSL.RuleSet do
     Enum.map(stmts, fn
       {:perform, _meta, [action, opts]} when is_list(opts) ->
         {:perform, action, opts}
+
       {:perform, _meta, [action]} ->
         {:perform, action, []}
     end)

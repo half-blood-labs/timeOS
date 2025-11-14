@@ -32,7 +32,9 @@ defmodule TimeOS.JobWorker do
       Logger.warning("Job worker #{job.id} terminating: #{inspect(reason)}")
 
       case Repo.get(ScheduledJob, job.id) do
-        nil -> :ok
+        nil ->
+          :ok
+
         running_job when running_job.status == :running ->
           running_job
           |> Ecto.Changeset.change(%{
@@ -40,16 +42,20 @@ defmodule TimeOS.JobWorker do
             last_error: "Worker terminated: #{inspect(reason)}"
           })
           |> Repo.update()
-        _ -> :ok
+
+        _ ->
+          :ok
       end
     end
+
     :ok
   end
 
   defp execute_job(job) do
     Logger.info("Executing job #{job.id}")
 
-    updated_job = job
+    updated_job =
+      job
       |> ScheduledJob.mark_running()
       |> Repo.update!()
 
@@ -59,7 +65,11 @@ defmodule TimeOS.JobWorker do
 
     case result do
       :ok ->
-        result_data = %{"status" => "success", "completed_at" => DateTime.utc_now() |> DateTime.to_iso8601()}
+        result_data = %{
+          "status" => "success",
+          "completed_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+
         updated_job
         |> ScheduledJob.mark_success(result_data)
         |> Repo.update!()
@@ -76,9 +86,10 @@ defmodule TimeOS.JobWorker do
   end
 
   defp trigger_dependent_jobs(job_id) do
-    query = from(j in ScheduledJob,
-      where: j.depends_on_job_id == ^job_id and j.status == :pending
-    )
+    query =
+      from(j in ScheduledJob,
+        where: j.depends_on_job_id == ^job_id and j.status == :pending
+      )
 
     dependent_jobs = Repo.all(query)
 
@@ -111,14 +122,14 @@ defmodule TimeOS.JobWorker do
     performers = TimeOS.RuleRegistry.get_performers()
 
     case Enum.find_value(performers, fn {mod, _} ->
-      if function_exported?(mod, :perform, 2) do
-        case mod.perform(action_name, payload) do
-          :ok -> :ok
-          {:error, _} = err -> err
-          other -> {:error, "Unexpected response: #{inspect(other)}"}
-        end
-      end
-    end) do
+           if function_exported?(mod, :perform, 2) do
+             case mod.perform(action_name, payload) do
+               :ok -> :ok
+               {:error, _} = err -> err
+               other -> {:error, "Unexpected response: #{inspect(other)}"}
+             end
+           end
+         end) do
       nil ->
         {:error, "No performer found for action: #{action_name}"}
 

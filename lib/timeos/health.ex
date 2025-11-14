@@ -48,7 +48,9 @@ defmodule TimeOS.Health do
 
   defp check_rule_registry do
     case Process.whereis(TimeOS.RuleRegistry) do
-      nil -> %{status: :unhealthy, message: "RuleRegistry not running"}
+      nil ->
+        %{status: :unhealthy, message: "RuleRegistry not running"}
+
       pid when is_pid(pid) ->
         try do
           TimeOS.RuleRegistry.get_rules()

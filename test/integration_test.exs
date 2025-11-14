@@ -18,7 +18,7 @@ defmodule TimeOS.IntegrationTest do
       use TimeOS.DSL.RuleSet
 
       on_event :test_event, offset: seconds(0) do
-        perform :test_action
+        perform(:test_action)
       end
     end
 
@@ -33,8 +33,8 @@ defmodule TimeOS.IntegrationTest do
     jobs = TimeOS.list_jobs(status: :success, limit: 10)
 
     assert Enum.any?(jobs, fn job ->
-      job.event_id == event_id && get_in(job.args, ["action"]) == "test_action"
-    end)
+             job.event_id == event_id && get_in(job.args, ["action"]) == "test_action"
+           end)
   end
 
   test "end-to-end: job dependencies" do
@@ -45,7 +45,7 @@ defmodule TimeOS.IntegrationTest do
       use TimeOS.DSL.RuleSet
 
       on_event :dependency_test, offset: seconds(0) do
-        perform :test_action
+        perform(:test_action)
       end
     end
 
@@ -56,9 +56,11 @@ defmodule TimeOS.IntegrationTest do
     Process.sleep(1000)
 
     jobs = TimeOS.list_jobs(status: :pending, limit: 100)
-    dependent_job = Enum.find(jobs, fn job ->
-      job.event_id == event_id && job.depends_on_job_id == first_job.id
-    end)
+
+    dependent_job =
+      Enum.find(jobs, fn job ->
+        job.event_id == event_id && job.depends_on_job_id == first_job.id
+      end)
 
     if dependent_job == nil do
       job_data = %{
@@ -70,7 +72,8 @@ defmodule TimeOS.IntegrationTest do
         args: %{"action" => "test_action"}
       }
 
-      {:ok, created_job} = TimeOS.Schema.ScheduledJob.changeset(%TimeOS.Schema.ScheduledJob{}, job_data)
+      {:ok, created_job} =
+        TimeOS.Schema.ScheduledJob.changeset(%TimeOS.Schema.ScheduledJob{}, job_data)
         |> Repo.insert()
 
       assert created_job.depends_on_job_id == first_job.id
@@ -119,5 +122,4 @@ defmodule TimeOS.IntegrationTest do
     assert replayed_event.id == event_id
     assert replayed_event.processed == false
   end
-
 end

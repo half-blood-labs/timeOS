@@ -7,7 +7,7 @@ defmodule RuleManagementTest do
         use TimeOS.DSL.RuleSet
 
         on_event :user_signup, offset: days(2) do
-          perform :send_welcome_email
+          perform(:send_welcome_email)
         end
       end
 

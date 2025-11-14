@@ -8,6 +8,7 @@ defmodule RateLimitingTest do
       nil -> RateLimiter.start_link([])
       _pid -> :ok
     end
+
     :ok
   end
 
@@ -16,9 +17,10 @@ defmodule RateLimitingTest do
       key = "test_key"
       limit = 10
 
-      results = for _ <- 1..5 do
-        RateLimiter.check_rate_limit(key, limit)
-      end
+      results =
+        for _ <- 1..5 do
+          RateLimiter.check_rate_limit(key, limit)
+        end
 
       assert Enum.all?(results, &(&1 == {:ok, :allowed}))
     end
@@ -60,7 +62,8 @@ defmodule RateLimitingTest do
         args: %{"action" => action_name}
       }
 
-      job = TimeOS.Schema.ScheduledJob.changeset(%TimeOS.Schema.ScheduledJob{}, job_data)
+      job =
+        TimeOS.Schema.ScheduledJob.changeset(%TimeOS.Schema.ScheduledJob{}, job_data)
         |> Repo.insert!()
 
       assert job.rate_limit_key == "rule:#{rule.id}:action:#{action_name}"

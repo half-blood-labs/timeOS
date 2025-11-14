@@ -7,9 +7,9 @@ defmodule TimeOS.Web do
   require Logger
   import Plug.Conn
 
-  plug Plug.Logger
-  plug :match
-  plug :dispatch
+  plug(Plug.Logger)
+  plug(:match)
+  plug(:dispatch)
 
   def start do
     port = Application.get_env(:timeos, :ui_port, 4000)
@@ -283,6 +283,7 @@ defmodule TimeOS.Web do
   end
 
   defp format_datetime(dt) when is_nil(dt), do: "N/A"
+
   defp format_datetime(dt) do
     dt
     |> DateTime.to_naive()

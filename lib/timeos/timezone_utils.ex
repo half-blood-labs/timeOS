@@ -4,12 +4,14 @@ defmodule TimeOS.TimezoneUtils do
   """
 
   def to_timezone(datetime, nil), do: {:ok, datetime}
+
   def to_timezone(datetime, timezone) when is_binary(timezone) do
     case DateTime.shift_zone(datetime, timezone) do
       {:ok, dt} -> {:ok, dt}
       error -> error
     end
   end
+
   def to_timezone(datetime, _), do: {:ok, datetime}
 
   def to_utc(datetime) do

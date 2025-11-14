@@ -44,6 +44,7 @@ defmodule Timeos.Application do
       Process.sleep(5_000)
 
       remaining = TimeOS.Health.check().metrics.running_jobs
+
       if remaining > 0 do
         Logger.warning("#{remaining} jobs still running after grace period")
       end
@@ -52,9 +53,11 @@ defmodule Timeos.Application do
 
   defp start_ui do
     require Logger
+
     case Application.ensure_all_started(:plug_cowboy) do
       {:ok, _} ->
         TimeOS.Web.start()
+
       _ ->
         Logger.warning("Plug/Cowboy not available, UI not started")
     end

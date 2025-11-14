@@ -65,6 +65,7 @@ defmodule TimeOS.RateLimiter do
 
   defp calculate_wait_time(bucket, now) do
     elapsed = now - bucket.last_refill
+
     if elapsed >= 60 do
       0
     else
