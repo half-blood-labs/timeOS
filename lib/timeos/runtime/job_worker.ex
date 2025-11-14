@@ -57,7 +57,6 @@ defmodule TimeOS.JobWorker do
 
       action_name ->
         try do
-          # Try to find and call a performer
           call_performer(action_name, payload, opts)
         rescue
           e ->
@@ -66,7 +65,6 @@ defmodule TimeOS.JobWorker do
     end
   end
 
-  # Call a registered performer (user-defined callback)
   defp call_performer(action_name, payload, _opts) do
     action_name = String.to_atom(action_name)
     performers = TimeOS.RuleRegistry.get_performers()
@@ -93,10 +91,10 @@ defmodule TimeOS.JobWorker do
 
     if job.attempt_count >= job.max_attempts do
       job
-      |> ScheduledJob.mark_dead(reason)
+      |> ScheduledJob.mark_dead_letter(reason)
       |> Repo.update!()
 
-      Logger.error("Job #{job.id} marked dead after #{job.attempt_count} attempts")
+      Logger.error("Job #{job.id} moved to dead letter queue after #{job.attempt_count} attempts")
     else
       backoff_ms = calculate_backoff(job.attempt_count)
       next_perform_at = DateTime.add(DateTime.utc_now(), backoff_ms, :millisecond)
@@ -113,7 +111,6 @@ defmodule TimeOS.JobWorker do
     end
   end
 
-  # Exponential backoff with jitter
   defp calculate_backoff(attempt_count) do
     base = 1_000 * Integer.pow(2, attempt_count)
     jitter = :rand.uniform(1_000)
