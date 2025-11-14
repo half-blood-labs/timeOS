@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, time]
+  pull_request:
+    branches: [main, master, time]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: timeos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.16"
+          otp-version: "26.0"
+
+      - name: Install dependencies
+        run: |
+          mix deps.get
+          mix deps.compile
+
+      - name: Create and migrate database
+        env:
+          MIX_ENV: test
+        run: |
+          mix ecto.create
+          mix ecto.migrate
+
+      - name: Run tests
+        env:
+          MIX_ENV: test
+        run: mix test
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
