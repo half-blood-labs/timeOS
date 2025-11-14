@@ -8,13 +8,15 @@ defmodule TimeOS.JobWorker do
 
   alias TimeOS.Schema.ScheduledJob
   alias TimeOS.Repo
+  import Ecto.Query
 
   def start_link(job) do
-    GenServer.start_link(__MODULE__, job)
+    GenServer.start_link(__MODULE__, job, name: :"job_worker_#{job.id}")
   end
 
   @impl true
   def init(job) do
+    Process.flag(:trap_exit, true)
     {:ok, job, {:continue, :execute}}
   end
 
@@ -24,6 +26,26 @@ defmodule TimeOS.JobWorker do
     {:stop, :normal, job}
   end
 
+  @impl true
+  def terminate(reason, job) do
+    if reason != :normal and reason != :shutdown do
+      Logger.warning("Job worker #{job.id} terminating: #{inspect(reason)}")
+
+      case Repo.get(ScheduledJob, job.id) do
+        nil -> :ok
+        running_job when running_job.status == :running ->
+          running_job
+          |> Ecto.Changeset.change(%{
+            status: :pending,
+            last_error: "Worker terminated: #{inspect(reason)}"
+          })
+          |> Repo.update()
+        _ -> :ok
+      end
+    end
+    :ok
+  end
+
   defp execute_job(job) do
     Logger.info("Executing job #{job.id}")
 
@@ -31,19 +53,38 @@ defmodule TimeOS.JobWorker do
       |> ScheduledJob.mark_running()
       |> Repo.update!()
 
+    TimeOS.Telemetry.emit_event(:job, :started, %{count: 1}, %{job_id: job.id})
+
     result = execute_action(updated_job.args)
 
     case result do
       :ok ->
+        result_data = %{"status" => "success", "completed_at" => DateTime.utc_now() |> DateTime.to_iso8601()}
         updated_job
-        |> ScheduledJob.mark_success()
+        |> ScheduledJob.mark_success(result_data)
         |> Repo.update!()
 
+        TimeOS.Telemetry.emit_event(:job, :completed, %{count: 1}, %{job_id: job.id})
         Logger.info("Job #{job.id} succeeded")
 
+        trigger_dependent_jobs(updated_job.id)
+
       {:error, reason} ->
+        TimeOS.Telemetry.emit_event(:job, :failed, %{count: 1}, %{job_id: job.id, error: reason})
         handle_retry_or_dead(updated_job, reason)
     end
+  end
+
+  defp trigger_dependent_jobs(job_id) do
+    query = from(j in ScheduledJob,
+      where: j.depends_on_job_id == ^job_id and j.status == :pending
+    )
+
+    dependent_jobs = Repo.all(query)
+
+    Enum.each(dependent_jobs, fn dependent_job ->
+      Logger.info("Job #{dependent_job.id} dependency satisfied, will execute when due")
+    end)
   end
 
   defp execute_action(args) do
