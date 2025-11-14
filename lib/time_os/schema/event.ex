@@ -8,13 +8,15 @@ defmodule TimeOS.Schema.Event do
     field :payload, :map
     field :occurred_at, :utc_datetime_usec
     field :processed, :boolean, default: false
+    field :idempotency_key, :string
     timestamps()
   end
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:type, :payload, :occurred_at, :processed])
+    |> cast(attrs, [:type, :payload, :occurred_at, :processed, :idempotency_key])
     |> validate_required([:type, :occurred_at])
+    |> unique_constraint(:idempotency_key, name: :events_idempotency_key_unique)
   end
 
   def from_emit(event_type, attrs) do
@@ -24,7 +26,8 @@ defmodule TimeOS.Schema.Event do
       type: type_string,
       payload: Map.get(attrs, :payload, %{}),
       occurred_at: Map.get(attrs, :occurred_at, DateTime.utc_now()),
-      processed: false
+      processed: false,
+      idempotency_key: Map.get(attrs, :idempotency_key)
     })
   end
 end
