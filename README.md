@@ -1,7 +1,7 @@
 # TimeOS
 
-[![CI](https://github.com/yourusername/timeos/workflows/CI/badge.svg)](https://github.com/yourusername/timeos/actions)
-[![Tests](https://img.shields.io/badge/tests-59%20passing-brightgreen)](https://github.com/yourusername/timeos/actions)
+[![CI](https://github.com/ijunaid8989/timeOS/workflows/CI/badge.svg)](https://github.com/ijunaid8989/timeOS/actions)
+[![Tests](https://img.shields.io/badge/tests-59%20passing%2C%200%20failing-brightgreen)](https://github.com/ijunaid8989/timeOS/actions)
 
 TimeOS is a powerful temporal rule engine for Elixir that enables you to schedule jobs based on events, time intervals, and cron expressions. It provides enterprise-grade features including job prioritization, rate limiting, timezone support, and dead letter queue management.
 
