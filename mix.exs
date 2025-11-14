@@ -30,6 +30,9 @@ defmodule Timeos.MixProject do
       {:postgrex, "~> 0.17"},
       {:jason, "~> 1.4"},
       {:tzdata, "~> 1.1"},
+      {:telemetry, "~> 1.0"},
+      {:plug, "~> 1.14", optional: true},
+      {:plug_cowboy, "~> 2.6", optional: true},
       {:ex_doc, "~> 0.30", only: :dev},
       {:ex_machina, "~> 2.7", only: :test},
       {:mock, "~> 0.3", only: :test}
