@@ -9,7 +9,42 @@ defmodule Timeos.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
-      elixirc_paths: elixirc_paths(Mix.env())
+      elixirc_paths: elixirc_paths(Mix.env()),
+      docs: [
+        main: "readme",
+        extras: ["README.md"],
+        source_url: "https://github.com/ijunaid8989/timeOS",
+        homepage_url: "https://github.com/ijunaid8989/timeOS",
+        groups_for_modules: [
+          "Core": [
+            TimeOS,
+            TimeOS.DSL.RuleSet
+          ],
+          "Runtime": [
+            TimeOS.Evaluator,
+            TimeOS.Scheduler,
+            TimeOS.JobWorker,
+            TimeOS.RuleRegistry,
+            TimeOS.EventReceiver,
+            TimeOS.RateLimiter
+          ],
+          "Schema": [
+            TimeOS.Schema.Event,
+            TimeOS.Schema.ScheduledJob,
+            TimeOS.Schema.TimeRule
+          ],
+          "Utilities": [
+            TimeOS.Health,
+            TimeOS.Telemetry,
+            TimeOS.Cleanup,
+            TimeOS.CronParser,
+            TimeOS.TimezoneUtils
+          ],
+          "Web": [
+            TimeOS.Web
+          ]
+        ]
+      ]
     ]
   end
 
