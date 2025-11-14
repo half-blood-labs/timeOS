@@ -15,7 +15,7 @@ defmodule Timeos.Application do
       TimeOS.Scheduler,
       TimeOS.RateLimiter,
       {DynamicSupervisor, strategy: :one_for_one, name: TimeOS.WorkerSupervisor}
-    ]
+    ] ++ cleanup_children()
 
     opts = [strategy: :one_for_one, name: Timeos.Supervisor]
     {:ok, pid} = Supervisor.start_link(children, opts)
@@ -60,6 +60,14 @@ defmodule Timeos.Application do
 
       _ ->
         Logger.warning("Plug/Cowboy not available, UI not started")
+    end
+  end
+
+  defp cleanup_children do
+    if Application.get_env(:timeos, :enable_cleanup_scheduler, true) do
+      [TimeOS.CleanupScheduler]
+    else
+      []
     end
   end
 end
