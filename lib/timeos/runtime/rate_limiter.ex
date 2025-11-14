@@ -24,10 +24,10 @@ defmodule TimeOS.RateLimiter do
     if bucket.tokens > 0 do
       new_bucket = %{bucket | tokens: bucket.tokens - 1, last_refill: now}
       new_state = %{state | buckets: Map.put(state.buckets, key, new_bucket)}
-      {:reply, :ok, new_state}
+      {:reply, {:ok, :allowed}, new_state}
     else
       wait_seconds = calculate_wait_time(bucket, now)
-      {:reply, {:rate_limited, wait_seconds}, state}
+      {:reply, {:error, :rate_limited, wait_seconds}, state}
     end
   end
 
