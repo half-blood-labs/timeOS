@@ -17,8 +17,8 @@ defmodule TimeOS.EventReceiver do
 
   @impl true
   def handle_cast({:new_event, event}, state) do
-    # Event is already persisted by TimeOS.emit/2
     Logger.info("Received event: type=#{event.type}, id=#{event.id}")
+    GenServer.cast(TimeOS.Evaluator, {:new_event, event})
     {:noreply, state}
   end
 
