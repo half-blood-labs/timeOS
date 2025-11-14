@@ -36,6 +36,7 @@ defmodule TimeOS.RuleRegistry do
       rescue
         DBConnection.OwnershipError ->
           []
+
         _e ->
           []
       catch

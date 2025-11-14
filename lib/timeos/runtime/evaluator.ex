@@ -189,6 +189,7 @@ defmodule TimeOS.Evaluator do
       DBConnection.OwnershipError ->
         Logger.warning("Database ownership error in Evaluator, job will be retried")
         :ok
+
       e ->
         Logger.error("Error persisting job: #{inspect(e)}")
         :ok

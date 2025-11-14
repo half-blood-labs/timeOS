@@ -64,6 +64,7 @@ defmodule TimeOS.Scheduler do
         DBConnection.OwnershipError ->
           Logger.warning("Database ownership error in Scheduler, skipping poll")
           []
+
         e ->
           Logger.error("Error polling jobs: #{inspect(e)}")
           []
@@ -99,6 +100,7 @@ defmodule TimeOS.Scheduler do
         DBConnection.OwnershipError ->
           Logger.warning("Database ownership error checking job dependency")
           false
+
         _ ->
           false
       catch
