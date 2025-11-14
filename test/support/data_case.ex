@@ -34,6 +34,7 @@ defmodule TimeOS.DataCase do
       TimeOS.Evaluator,
       TimeOS.Scheduler,
       TimeOS.RateLimiter,
+      TimeOS.ConcurrencyTracker,
       TimeOS.EventReceiver,
       TimeOS.CleanupScheduler
     ]

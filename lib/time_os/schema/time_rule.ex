@@ -13,6 +13,7 @@ defmodule TimeOS.Schema.TimeRule do
     field(:priority, :integer, default: 0)
     field(:rate_limit_per_minute, :integer)
     field(:timezone, :string)
+    field(:concurrency_limit, :integer)
     timestamps()
   end
 
@@ -26,7 +27,8 @@ defmodule TimeOS.Schema.TimeRule do
       :cron_expression,
       :priority,
       :rate_limit_per_minute,
-      :timezone
+      :timezone,
+      :concurrency_limit
     ])
     |> validate_required([:name, :compiled])
     |> unique_constraint(:name)

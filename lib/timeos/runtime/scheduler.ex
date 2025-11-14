@@ -79,7 +79,11 @@ defmodule TimeOS.Scheduler do
     Enum.each(jobs, fn job ->
       if can_execute_job?(job) do
         if check_rate_limit(job) do
-          spawn_worker(job)
+          if check_concurrency_limit(job) do
+            spawn_worker(job)
+          else
+            Logger.debug("Job #{job.id} concurrency limited, deferring")
+          end
         else
           Logger.debug("Job #{job.id} rate limited, deferring")
         end
@@ -130,6 +134,37 @@ defmodule TimeOS.Scheduler do
             )
 
             Logger.debug("Job #{job.id} rate limited, waiting #{wait_seconds}s")
+            false
+
+          _ ->
+            true
+        end
+      else
+        true
+      end
+    else
+      true
+    end
+  end
+
+  defp check_concurrency_limit(job) do
+    if job.rule_id do
+      rule = TimeOS.RuleRegistry.get_rule_by_id(job.rule_id)
+
+      if rule && rule.concurrency_limit do
+        case TimeOS.ConcurrencyTracker.check_limit(job.rule_id, rule.concurrency_limit) do
+          {:ok, :allowed} ->
+            true
+
+          {:error, :limit_exceeded} ->
+            TimeOS.Telemetry.emit_event(
+              :concurrency_limit,
+              :exceeded,
+              %{count: 1},
+              %{job_id: job.id, rule_id: job.rule_id}
+            )
+
+            Logger.debug("Job #{job.id} concurrency limited for rule #{job.rule_id}")
             false
 
           _ ->

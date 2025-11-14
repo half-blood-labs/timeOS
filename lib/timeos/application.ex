@@ -15,6 +15,7 @@ defmodule Timeos.Application do
         TimeOS.Evaluator,
         TimeOS.Scheduler,
         TimeOS.RateLimiter,
+        TimeOS.ConcurrencyTracker,
         {DynamicSupervisor, strategy: :one_for_one, name: TimeOS.WorkerSupervisor}
       ] ++ cleanup_children()
 
