@@ -26,6 +26,7 @@ defmodule TimeOS.Schema.ScheduledJob do
     field(:dead_letter_at, :utc_datetime_usec)
     field(:depends_on_job_id, :binary_id)
     field(:result, :map)
+    field(:timeout_seconds, :integer)
     timestamps()
   end
 
@@ -47,7 +48,8 @@ defmodule TimeOS.Schema.ScheduledJob do
       :dead_letter_queue,
       :dead_letter_at,
       :depends_on_job_id,
-      :result
+      :result,
+      :timeout_seconds
     ])
     |> validate_required([:rule_id, :perform_at])
     |> unique_constraint(:idempotency_key, name: :scheduled_jobs_idempotency_key_unique)

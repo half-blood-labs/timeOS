@@ -108,6 +108,13 @@ defmodule TimeOS.Evaluator do
         depends_on_job_id =
           if is_map(action_opts), do: Map.get(action_opts, "depends_on_job_id"), else: nil
 
+        timeout_seconds =
+          cond do
+            is_map(action_opts) -> Map.get(action_opts, "timeout_seconds")
+            is_list(action_opts) -> Keyword.get(action_opts, :timeout_seconds)
+            true -> nil
+          end
+
         %{
           rule_id: rule.id,
           event_id: event.id,
@@ -119,6 +126,7 @@ defmodule TimeOS.Evaluator do
           timezone: rule.timezone,
           rate_limit_key: rate_limit_key,
           depends_on_job_id: depends_on_job_id,
+          timeout_seconds: timeout_seconds,
           args: %{
             "action" => normalize_action_name(action_name),
             "opts" => action_opts || [],

@@ -17,18 +17,81 @@ defmodule TimeOS.JobWorker do
   @impl true
   def init(job) do
     Process.flag(:trap_exit, true)
-    {:ok, job, {:continue, :execute}}
+
+    # Set up timeout if specified
+    timeout_ref =
+      if job.timeout_seconds && job.timeout_seconds > 0 do
+        Process.send_after(self(), :timeout, job.timeout_seconds * 1000)
+      else
+        nil
+      end
+
+    {:ok, %{job: job, timeout_ref: timeout_ref}, {:continue, :execute}}
   end
 
   @impl true
-  def handle_continue(:execute, job) do
-    execute_job(job)
-    {:stop, :normal, job}
+  def handle_continue(:execute, state) do
+    # Increment concurrency tracker
+    if state.job.rule_id do
+      TimeOS.ConcurrencyTracker.increment(state.job.rule_id)
+    end
+
+    execute_job(state.job, state.timeout_ref)
+    {:stop, :normal, state}
   end
 
   @impl true
-  def terminate(reason, job) do
-    if reason != :normal and reason != :shutdown do
+  def handle_info(:timeout, state) do
+    Logger.warning("Job #{state.job.id} timed out after #{state.job.timeout_seconds} seconds")
+
+    # Mark job as failed due to timeout
+    case Repo.get(ScheduledJob, state.job.id) do
+      nil ->
+        :ok
+
+      running_job when running_job.status == :running ->
+        timeout_error = "Job timed out after #{state.job.timeout_seconds} seconds"
+
+        updated_job =
+          running_job
+          |> Ecto.Changeset.change(%{
+            status: :pending,
+            last_error: timeout_error
+          })
+          |> Repo.update!()
+
+        TimeOS.Telemetry.emit_event(:job, :failed, %{count: 1}, %{
+          job_id: state.job.id,
+          error: :timeout
+        })
+
+        # Handle retry or dead letter
+        handle_retry_or_dead(updated_job, timeout_error)
+    end
+
+    # Decrement concurrency tracker
+    if state.job.rule_id do
+      TimeOS.ConcurrencyTracker.decrement(state.job.rule_id)
+    end
+
+    {:stop, :timeout, state}
+  end
+
+  @impl true
+  def terminate(reason, state) do
+    job = state.job
+
+    # Decrement concurrency tracker
+    if job.rule_id do
+      TimeOS.ConcurrencyTracker.decrement(job.rule_id)
+    end
+
+    # Cancel timeout timer if exists
+    if state.timeout_ref do
+      Process.cancel_timer(state.timeout_ref)
+    end
+
+    if reason != :normal and reason != :shutdown and reason != :timeout do
       Logger.warning("Job worker #{job.id} terminating: #{inspect(reason)}")
 
       case Repo.get(ScheduledJob, job.id) do
@@ -51,7 +114,7 @@ defmodule TimeOS.JobWorker do
     :ok
   end
 
-  defp execute_job(job) do
+  defp execute_job(job, timeout_ref) do
     Logger.info("Executing job #{job.id}")
 
     updated_job =
@@ -62,6 +125,11 @@ defmodule TimeOS.JobWorker do
     TimeOS.Telemetry.emit_event(:job, :started, %{count: 1}, %{job_id: job.id})
 
     result = execute_action(updated_job.args)
+
+    # Cancel timeout timer if job completes before timeout
+    if timeout_ref do
+      Process.cancel_timer(timeout_ref)
+    end
 
     case result do
       :ok ->
@@ -82,6 +150,11 @@ defmodule TimeOS.JobWorker do
       {:error, reason} ->
         TimeOS.Telemetry.emit_event(:job, :failed, %{count: 1}, %{job_id: job.id, error: reason})
         handle_retry_or_dead(updated_job, reason)
+    end
+
+    # Decrement concurrency tracker
+    if job.rule_id do
+      TimeOS.ConcurrencyTracker.decrement(job.rule_id)
     end
   end
 
