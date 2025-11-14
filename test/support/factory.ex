@@ -12,7 +12,11 @@ defmodule TimeOS.Factory do
         "offset_ms" => 0,
         "actions" => [%{"action" => "test_action", "opts" => []}]
       },
-      enabled: true
+      enabled: true,
+      priority: 0,
+      rate_limit_per_minute: nil,
+      timezone: nil,
+      cron_expression: nil
     }
   end
 
@@ -33,6 +37,11 @@ defmodule TimeOS.Factory do
       attempt_count: 0,
       max_attempts: 3,
       status: :pending,
+      priority: 0,
+      timezone: nil,
+      rate_limit_key: nil,
+      dead_letter_queue: false,
+      dead_letter_at: nil,
       args: %{
         "action" => "test_action",
         "opts" => [],
