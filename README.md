@@ -470,6 +470,27 @@ TimeOS.delete_dead_letter_job(job_id)
 # Check system health
 TimeOS.health_check()
 # Returns health status, component checks, and metrics
+
+# Get cleanup statistics
+TimeOS.cleanup_stats()
+# Returns statistics about old data that can be cleaned up
+```
+
+### Data Cleanup
+
+```elixir
+# Manual cleanup with default retention periods
+TimeOS.cleanup()
+
+# Manual cleanup with custom retention periods
+TimeOS.cleanup(
+  events_retention_days: 60,
+  success_jobs_retention_days: 14,
+  failed_jobs_retention_days: 3
+)
+
+# Get cleanup statistics
+TimeOS.cleanup_stats()
 ```
 
 ## Examples
@@ -563,7 +584,106 @@ config :timeos, TimeOS.Repo,
 # Enable web UI (optional)
 config :timeos, enable_ui: true
 config :timeos, ui_port: 4000
+
+# Logging configuration
+config :logger,
+  level: :debug,
+  compile_time_purge_matching: [
+    [level_lower_than: :debug]
+  ]
+
+# Data cleanup configuration (optional)
+config :timeos,
+  enable_cleanup_scheduler: true,
+  cleanup_interval_ms: 24 * 60 * 60 * 1000,  # 24 hours
+  events_retention_days: 90,
+  success_jobs_retention_days: 30,
+  failed_jobs_retention_days: 7
 ```
+
+### Production Configuration
+
+For production, use environment variables:
+
+```elixir
+# config/prod.exs (already included)
+# Set DATABASE_URL, POOL_SIZE, LOG_LEVEL, etc. via environment variables
+```
+
+Environment variables:
+- `DATABASE_URL`: PostgreSQL connection string
+- `POOL_SIZE`: Database connection pool size (default: 20)
+- `LOG_LEVEL`: Logging level - `debug`, `info`, `warn`, `error` (default: `info`)
+- `ENABLE_UI`: Enable web UI (default: `false`)
+- `UI_PORT`: Web UI port (default: `4000`)
+
+### Logging Configuration
+
+TimeOS supports configurable logging levels per environment:
+
+- **Development**: `:debug` - Shows all logs including debug information
+- **Test**: `:warn` - Only warnings and errors
+- **Production**: Configurable via `LOG_LEVEL` environment variable (default: `:info`)
+
+Log metadata includes:
+- `job_id`: ID of the job being processed
+- `event_id`: ID of the event being processed
+- `rule_id`: ID of the rule being evaluated
+- `request_id`: Request ID for tracing
+
+### Data Cleanup
+
+TimeOS includes automatic cleanup to prevent database bloat:
+
+**Automatic Cleanup (Scheduled)**
+
+The cleanup scheduler runs periodically (default: every 24 hours) to remove old data:
+
+```elixir
+# Enable/disable automatic cleanup
+config :timeos, enable_cleanup_scheduler: true
+
+# Configure cleanup interval (in milliseconds)
+config :timeos, cleanup_interval_ms: 24 * 60 * 60 * 1000  # 24 hours
+
+# Configure retention periods
+config :timeos,
+  events_retention_days: 90,           # Keep events for 90 days
+  success_jobs_retention_days: 30,     # Keep successful jobs for 30 days
+  failed_jobs_retention_days: 7        # Keep failed jobs for 7 days
+```
+
+**Manual Cleanup**
+
+You can also trigger cleanup manually:
+
+```elixir
+# Clean up all old data with default retention periods
+TimeOS.cleanup()
+
+# Clean up with custom retention periods
+TimeOS.cleanup(
+  events_retention_days: 60,
+  success_jobs_retention_days: 14,
+  failed_jobs_retention_days: 3
+)
+
+# Get statistics about cleanable data
+stats = TimeOS.cleanup_stats()
+# Returns: %{
+#   old_events: 150,
+#   old_successful_jobs: 45,
+#   old_failed_jobs: 3,
+#   total_cleanable: 198
+# }
+
+# Clean up specific types
+TimeOS.Cleanup.cleanup_old_events(90)           # Remove events older than 90 days
+TimeOS.Cleanup.cleanup_old_successful_jobs(30)  # Remove successful jobs older than 30 days
+TimeOS.Cleanup.cleanup_old_failed_jobs(7)      # Remove failed jobs older than 7 days
+```
+
+**Note**: Dead letter queue jobs are never automatically cleaned up. You must manually manage them using `TimeOS.delete_dead_letter_job/1`.
 
 ### Graceful Shutdown
 
@@ -591,7 +711,21 @@ TimeOS includes comprehensive tests for all features including:
 - Job dependencies
 - Batch operations
 - Health checks
+- Data cleanup
 - Integration tests
+
+## Documentation
+
+Generate documentation using ExDoc:
+
+```bash
+mix docs
+```
+
+This will generate HTML documentation in the `doc/` directory. The documentation includes:
+- Complete API reference
+- Module grouping by category (Core, Runtime, Schema, Utilities, Web)
+- Code examples and usage patterns
 
 ## Architecture
 
@@ -607,6 +741,8 @@ TimeOS consists of several key components:
 - **Health**: Monitors system health and component status
 - **Telemetry**: Tracks events and job lifecycle for observability
 - **Web**: Provides web UI for job monitoring (optional)
+- **Cleanup**: Automatic and manual data cleanup to prevent database bloat
+- **CleanupScheduler**: Periodically runs cleanup tasks
 
 ## Contributing
 
