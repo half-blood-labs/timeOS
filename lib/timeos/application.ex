@@ -7,15 +7,16 @@ defmodule Timeos.Application do
   def start(_type, _args) do
     TimeOS.Telemetry.setup()
 
-    children = [
-      TimeOS.Repo,
-      TimeOS.RuleRegistry,
-      TimeOS.EventReceiver,
-      TimeOS.Evaluator,
-      TimeOS.Scheduler,
-      TimeOS.RateLimiter,
-      {DynamicSupervisor, strategy: :one_for_one, name: TimeOS.WorkerSupervisor}
-    ] ++ cleanup_children()
+    children =
+      [
+        TimeOS.Repo,
+        TimeOS.RuleRegistry,
+        TimeOS.EventReceiver,
+        TimeOS.Evaluator,
+        TimeOS.Scheduler,
+        TimeOS.RateLimiter,
+        {DynamicSupervisor, strategy: :one_for_one, name: TimeOS.WorkerSupervisor}
+      ] ++ cleanup_children()
 
     opts = [strategy: :one_for_one, name: Timeos.Supervisor]
     {:ok, pid} = Supervisor.start_link(children, opts)

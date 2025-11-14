@@ -74,11 +74,12 @@ defmodule TimeOS.CleanupTest do
     insert(:scheduled_job, status: :success, inserted_at: old_date)
     insert(:scheduled_job, status: :failed, inserted_at: old_date, dead_letter_queue: false)
 
-    result = Cleanup.cleanup_all(
-      events_retention_days: 90,
-      success_jobs_retention_days: 30,
-      failed_jobs_retention_days: 7
-    )
+    result =
+      Cleanup.cleanup_all(
+        events_retention_days: 90,
+        success_jobs_retention_days: 30,
+        failed_jobs_retention_days: 7
+      )
 
     assert result.events_deleted >= 1
     assert result.successful_jobs_deleted >= 1

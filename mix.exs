@@ -16,11 +16,11 @@ defmodule Timeos.MixProject do
         source_url: "https://github.com/ijunaid8989/timeOS",
         homepage_url: "https://github.com/ijunaid8989/timeOS",
         groups_for_modules: [
-          "Core": [
+          Core: [
             TimeOS,
             TimeOS.DSL.RuleSet
           ],
-          "Runtime": [
+          Runtime: [
             TimeOS.Evaluator,
             TimeOS.Scheduler,
             TimeOS.JobWorker,
@@ -28,19 +28,19 @@ defmodule Timeos.MixProject do
             TimeOS.EventReceiver,
             TimeOS.RateLimiter
           ],
-          "Schema": [
+          Schema: [
             TimeOS.Schema.Event,
             TimeOS.Schema.ScheduledJob,
             TimeOS.Schema.TimeRule
           ],
-          "Utilities": [
+          Utilities: [
             TimeOS.Health,
             TimeOS.Telemetry,
             TimeOS.Cleanup,
             TimeOS.CronParser,
             TimeOS.TimezoneUtils
           ],
-          "Web": [
+          Web: [
             TimeOS.Web
           ]
         ]

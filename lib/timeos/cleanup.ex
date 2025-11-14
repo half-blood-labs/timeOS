@@ -51,9 +51,10 @@ defmodule TimeOS.Cleanup do
 
     query =
       from(j in ScheduledJob,
-        where: j.status == :failed and
-               j.dead_letter_queue == false and
-               j.inserted_at < ^cutoff_date
+        where:
+          j.status == :failed and
+            j.dead_letter_queue == false and
+            j.inserted_at < ^cutoff_date
       )
 
     {count, _} = Repo.delete_all(query)
@@ -124,9 +125,10 @@ defmodule TimeOS.Cleanup do
 
     old_failed_jobs_count =
       from(j in ScheduledJob,
-        where: j.status == :failed and
-               j.dead_letter_queue == false and
-               j.inserted_at < ^DateTime.add(now, -7, :day)
+        where:
+          j.status == :failed and
+            j.dead_letter_queue == false and
+            j.inserted_at < ^DateTime.add(now, -7, :day)
       )
       |> Repo.aggregate(:count, :id)
 
