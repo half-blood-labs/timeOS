@@ -408,6 +408,25 @@ defmodule TimeOS do
     TimeOS.Health.check()
   end
 
+  @doc """
+  Clean up old events and jobs to prevent database bloat.
+
+  Options:
+    - events_retention_days: days to keep events (default: 90)
+    - success_jobs_retention_days: days to keep successful jobs (default: 30)
+    - failed_jobs_retention_days: days to keep failed jobs (default: 7)
+  """
+  def cleanup(opts \\ []) do
+    TimeOS.Cleanup.cleanup_all(opts)
+  end
+
+  @doc """
+  Get statistics about data that can be cleaned up.
+  """
+  def cleanup_stats do
+    TimeOS.Cleanup.get_cleanup_stats()
+  end
+
   defp extract_timezone_from_rule(compiled_rule, module) do
     if function_exported?(module, :__timeos_rule_opts__, 0) do
       opts = module.__timeos_rule_opts__()
