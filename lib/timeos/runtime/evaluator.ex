@@ -24,7 +24,6 @@ defmodule TimeOS.Evaluator do
     {:noreply, state}
   end
 
-  # Evaluate an event against all rules
   defp evaluate_event(event) do
     rules = TimeOS.RuleRegistry.get_rules()
 
@@ -40,35 +39,64 @@ defmodule TimeOS.Evaluator do
     end)
   end
 
-  # Check if a rule matches an event and generate jobs
   defp match_rule(rule, event) do
     compiled = rule.compiled
 
     case compiled do
       %{"type" => "on_event", "event_type" => event_type} ->
-        if event_type == event.type or event_type == event.type do
-          generate_jobs_from_rule(rule, event)
+        event_type_str = normalize_event_type(event_type)
+        event_type_normalized = normalize_event_type(event.type)
+
+        if event_type_str == event_type_normalized do
+          if evaluate_when_clause(rule, compiled, event) do
+            generate_jobs_from_rule(rule, event)
+          else
+            :no_match
+          end
         else
           :no_match
         end
+
+      %{"type" => "every"} ->
+        :no_match
+
+      %{"type" => "cron"} ->
+        :no_match
 
       _ ->
         :no_match
     end
   end
 
-  # Generate job records from a matched rule
+  defp normalize_event_type(event_type) when is_atom(event_type), do: Atom.to_string(event_type)
+  defp normalize_event_type(event_type) when is_binary(event_type), do: event_type
+  defp normalize_event_type(_), do: ""
+
+  defp evaluate_when_clause(rule, compiled, event) do
+    if Map.get(compiled, "when_present", false) do
+      case TimeOS.RuleRegistry.get_when_clause(rule.id) do
+        nil -> true
+        when_pred when is_function(when_pred, 1) -> when_pred.(event.payload)
+        when_pred when is_function(when_pred, 2) -> when_pred.(event.payload, event)
+        _ -> true
+      end
+    else
+      true
+    end
+  end
+
   defp generate_jobs_from_rule(rule, event) do
     compiled = rule.compiled
-    offset_ms = Map.get(compiled, "offset_ms", 0)
+    offset_ms = Map.get(compiled, "offset_ms", 0) || 0
 
-    perform_at = DateTime.add(event.occurred_at, offset_ms, :millisecond)
+    perform_at = calculate_perform_at(event.occurred_at, offset_ms, rule.timezone)
 
     actions = Map.get(compiled, "actions", [])
 
     jobs = Enum.map(actions, fn action ->
-      action_name = get_in(action, ["action"])
-      action_opts = get_in(action, ["opts"]) || []
+      {action_name, action_opts} = extract_action_info(action)
+
+      rate_limit_key = generate_rate_limit_key(rule, action_name)
 
       %{
         rule_id: rule.id,
@@ -77,9 +105,12 @@ defmodule TimeOS.Evaluator do
         status: :pending,
         max_attempts: 3,
         attempt_count: 0,
+        priority: rule.priority || 0,
+        timezone: rule.timezone,
+        rate_limit_key: rate_limit_key,
         args: %{
-          "action" => action_name,
-          "opts" => action_opts,
+          "action" => normalize_action_name(action_name),
+          "opts" => action_opts || [],
           "event_type" => event.type,
           "payload" => event.payload
         },
@@ -88,6 +119,43 @@ defmodule TimeOS.Evaluator do
     end)
 
     {:ok, jobs}
+  end
+
+  defp calculate_perform_at(occurred_at, offset_ms, nil) do
+    DateTime.add(occurred_at, offset_ms, :millisecond)
+  end
+
+  defp calculate_perform_at(occurred_at, offset_ms, timezone) do
+    case TimeOS.TimezoneUtils.to_timezone(occurred_at, timezone) do
+      {:ok, dt} ->
+        dt
+        |> DateTime.add(offset_ms, :millisecond)
+        |> TimeOS.TimezoneUtils.to_utc()
+        |> elem(1)
+
+      _ ->
+        DateTime.add(occurred_at, offset_ms, :millisecond)
+    end
+  end
+
+  defp extract_action_info(%{"action" => action, "opts" => opts}), do: {action, opts}
+  defp extract_action_info(%{"action" => action}), do: {action, []}
+  defp extract_action_info({:perform, action, opts}) when is_list(opts), do: {action, opts}
+  defp extract_action_info({:perform, action}), do: {action, []}
+  defp extract_action_info(action) when is_atom(action), do: {action, []}
+  defp extract_action_info(action) when is_binary(action), do: {action, []}
+  defp extract_action_info(_), do: {nil, []}
+
+  defp normalize_action_name(name) when is_atom(name), do: Atom.to_string(name)
+  defp normalize_action_name(name) when is_binary(name), do: name
+  defp normalize_action_name(_), do: ""
+
+  defp generate_rate_limit_key(rule, action_name) do
+    if rule.rate_limit_per_minute do
+      "rule:#{rule.id}:action:#{normalize_action_name(action_name)}"
+    else
+      nil
+    end
   end
 
   defp persist_job(job_data) do
