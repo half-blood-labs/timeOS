@@ -19,12 +19,14 @@ defmodule TimeOS.Schema.ScheduledJob do
     field :rate_limit_key, :string
     field :dead_letter_queue, :boolean, default: false
     field :dead_letter_at, :utc_datetime_usec
+    field :depends_on_job_id, :binary_id
+    field :result, :map
     timestamps()
   end
 
   def changeset(job, attrs) do
     job
-    |> cast(attrs, [:rule_id, :event_id, :perform_at, :attempt_count, :max_attempts, :status, :args, :last_error, :idempotency_key, :priority, :timezone, :rate_limit_key, :dead_letter_queue, :dead_letter_at])
+    |> cast(attrs, [:rule_id, :event_id, :perform_at, :attempt_count, :max_attempts, :status, :args, :last_error, :idempotency_key, :priority, :timezone, :rate_limit_key, :dead_letter_queue, :dead_letter_at, :depends_on_job_id, :result])
     |> validate_required([:rule_id, :perform_at])
     |> unique_constraint(:idempotency_key, name: :scheduled_jobs_idempotency_key_unique)
   end
@@ -42,8 +44,8 @@ defmodule TimeOS.Schema.ScheduledJob do
     change(job, status: :running, attempt_count: job.attempt_count + 1)
   end
 
-  def mark_success(job) do
-    change(job, status: :success, last_error: nil)
+  def mark_success(job, result \\ nil) do
+    change(job, status: :success, last_error: nil, result: result)
   end
 
   def mark_failed(job, reason) do

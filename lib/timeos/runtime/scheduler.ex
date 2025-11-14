@@ -62,12 +62,27 @@ defmodule TimeOS.Scheduler do
     Logger.debug("Found #{length(jobs)} due jobs")
 
     Enum.each(jobs, fn job ->
-      if check_rate_limit(job) do
-        spawn_worker(job)
+      if can_execute_job?(job) do
+        if check_rate_limit(job) do
+          spawn_worker(job)
+        else
+          Logger.debug("Job #{job.id} rate limited, deferring")
+        end
       else
-        Logger.debug("Job #{job.id} rate limited, deferring")
+        Logger.debug("Job #{job.id} waiting for dependency")
       end
     end)
+  end
+
+  defp can_execute_job?(job) do
+    if job.depends_on_job_id do
+      case Repo.get(ScheduledJob, job.depends_on_job_id) do
+        nil -> false
+        dependent_job -> dependent_job.status == :success
+      end
+    else
+      true
+    end
   end
 
   defp check_rate_limit(job) do
@@ -75,8 +90,12 @@ defmodule TimeOS.Scheduler do
       rule = TimeOS.RuleRegistry.get_rule_by_id(job.rule_id)
       if rule && rule.rate_limit_per_minute do
         case TimeOS.RateLimiter.check_rate_limit(job.rate_limit_key, rule.rate_limit_per_minute) do
-          :ok -> true
-          {:rate_limited, _wait} -> false
+          {:ok, :allowed} -> true
+          {:error, :rate_limited, wait_seconds} ->
+            TimeOS.Telemetry.emit_event(:rate_limit, :exceeded, %{count: 1, wait_seconds: wait_seconds}, %{job_id: job.id})
+            Logger.debug("Job #{job.id} rate limited, waiting #{wait_seconds}s")
+            false
+          _ -> true
         end
       else
         true
@@ -92,6 +111,7 @@ defmodule TimeOS.Scheduler do
       {TimeOS.JobWorker, job}
     ) do
       {:ok, _pid} ->
+        TimeOS.Telemetry.emit_event(:job, :started, %{count: 1}, %{job_id: job.id})
         Logger.info("Spawned worker for job #{job.id}")
 
       {:error, reason} ->
