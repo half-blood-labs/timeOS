@@ -172,17 +172,30 @@ defmodule TimeOS.Evaluator do
   defp persist_job(job_data) do
     changeset = ScheduledJob.changeset(%ScheduledJob{}, job_data)
 
-    case Repo.insert(changeset, on_conflict: :nothing) do
-      {:ok, job} ->
-        TimeOS.Telemetry.emit_event(:job, :created, %{count: 1}, %{
-          job_id: job.id,
-          rule_id: job.rule_id
-        })
+    try do
+      case Repo.insert(changeset, on_conflict: :nothing) do
+        {:ok, job} ->
+          TimeOS.Telemetry.emit_event(:job, :created, %{count: 1}, %{
+            job_id: job.id,
+            rule_id: job.rule_id
+          })
 
-        Logger.debug("Scheduled job: #{job.id}")
+          Logger.debug("Scheduled job: #{job.id}")
 
-      {:error, reason} ->
-        Logger.error("Failed to schedule job: #{inspect(reason)}")
+        {:error, reason} ->
+          Logger.error("Failed to schedule job: #{inspect(reason)}")
+      end
+    rescue
+      DBConnection.OwnershipError ->
+        Logger.warning("Database ownership error in Evaluator, job will be retried")
+        :ok
+      e ->
+        Logger.error("Error persisting job: #{inspect(e)}")
+        :ok
+    catch
+      :exit, reason ->
+        Logger.warning("Exit while persisting job: #{inspect(reason)}")
+        :ok
     end
   end
 

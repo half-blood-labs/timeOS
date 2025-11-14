@@ -28,18 +28,25 @@ defmodule TimeOS.RuleRegistry do
   @impl true
   def handle_continue(:load_rules, state) do
     rules =
-      case Repo.all(from(tr in TimeRule, where: tr.enabled == true)) do
-        rules when is_list(rules) -> rules
-        _ -> []
+      try do
+        case Repo.all(from(tr in TimeRule, where: tr.enabled == true)) do
+          rules when is_list(rules) -> rules
+          _ -> []
+        end
+      rescue
+        DBConnection.OwnershipError ->
+          []
+        _e ->
+          []
+      catch
+        :exit, _ ->
+          []
       end
 
     new_state = %{state | rules: rules}
     Logger.info("Loaded #{length(rules)} rules from DB")
 
     {:noreply, new_state}
-  rescue
-    _e ->
-      {:noreply, state}
   end
 
   @impl true

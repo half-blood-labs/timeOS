@@ -12,7 +12,7 @@ config :timeos, TimeOS.Repo,
 config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
 
 config :logger,
-  level: :warn,
+  level: :warning,
   compile_time_purge_matching: [
-    [level_lower_than: :warn]
+    [level_lower_than: :warning]
   ]

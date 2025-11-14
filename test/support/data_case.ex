@@ -17,32 +17,35 @@ defmodule TimeOS.DataCase do
   end
 
   setup tags do
-    case Process.whereis(TimeOS.Repo) do
-      nil ->
-        {:ok, _} = Application.ensure_all_started(:timeos)
-
-      _ ->
-        :ok
-    end
-
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(TimeOS.Repo)
 
     unless tags[:async] do
       Ecto.Adapters.SQL.Sandbox.mode(TimeOS.Repo, {:shared, self()})
     end
 
-    if Process.whereis(TimeOS.RuleRegistry) do
-      Ecto.Adapters.SQL.Sandbox.allow(TimeOS.Repo, Process.whereis(TimeOS.RuleRegistry), self())
-    end
-
-    if Process.whereis(TimeOS.Evaluator) do
-      Ecto.Adapters.SQL.Sandbox.allow(TimeOS.Repo, Process.whereis(TimeOS.Evaluator), self())
-    end
-
-    if Process.whereis(TimeOS.Scheduler) do
-      Ecto.Adapters.SQL.Sandbox.allow(TimeOS.Repo, Process.whereis(TimeOS.Scheduler), self())
-    end
+    allow_gen_servers()
 
     :ok
+  end
+
+  defp allow_gen_servers do
+    gen_servers = [
+      TimeOS.RuleRegistry,
+      TimeOS.Evaluator,
+      TimeOS.Scheduler,
+      TimeOS.RateLimiter,
+      TimeOS.EventReceiver,
+      TimeOS.CleanupScheduler
+    ]
+
+    Enum.each(gen_servers, fn module ->
+      case Process.whereis(module) do
+        nil ->
+          :ok
+
+        pid ->
+          Ecto.Adapters.SQL.Sandbox.allow(TimeOS.Repo, pid, self())
+      end
+    end)
   end
 end

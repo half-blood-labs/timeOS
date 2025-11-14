@@ -5,6 +5,6 @@ ExUnit.start()
 {:ok, _} = Application.ensure_all_started(:ecto_sql)
 {:ok, _} = Application.ensure_all_started(:postgrex)
 
-{:ok, _} = Application.ensure_all_started(:timeos)
-
 Ecto.Adapters.SQL.Sandbox.mode(TimeOS.Repo, :manual)
+
+{:ok, _} = Application.ensure_all_started(:timeos)

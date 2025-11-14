@@ -57,7 +57,21 @@ defmodule TimeOS.Scheduler do
         lock: "FOR UPDATE SKIP LOCKED"
       )
 
-    jobs = Repo.all(query)
+    jobs =
+      try do
+        Repo.all(query)
+      rescue
+        DBConnection.OwnershipError ->
+          Logger.warning("Database ownership error in Scheduler, skipping poll")
+          []
+        e ->
+          Logger.error("Error polling jobs: #{inspect(e)}")
+          []
+      catch
+        :exit, _ ->
+          Logger.warning("Exit while polling jobs")
+          []
+      end
 
     Logger.debug("Found #{length(jobs)} due jobs")
 
@@ -76,9 +90,20 @@ defmodule TimeOS.Scheduler do
 
   defp can_execute_job?(job) do
     if job.depends_on_job_id do
-      case Repo.get(ScheduledJob, job.depends_on_job_id) do
-        nil -> false
-        dependent_job -> dependent_job.status == :success
+      try do
+        case Repo.get(ScheduledJob, job.depends_on_job_id) do
+          nil -> false
+          dependent_job -> dependent_job.status == :success
+        end
+      rescue
+        DBConnection.OwnershipError ->
+          Logger.warning("Database ownership error checking job dependency")
+          false
+        _ ->
+          false
+      catch
+        :exit, _ ->
+          false
       end
     else
       true
