@@ -9,12 +9,16 @@ defmodule TimeOS.Schema.TimeRule do
     field :compiled, :map
     field :module, :string
     field :enabled, :boolean, default: true
+    field :cron_expression, :string
+    field :priority, :integer, default: 0
+    field :rate_limit_per_minute, :integer
+    field :timezone, :string
     timestamps()
   end
 
   def changeset(rule, attrs) do
     rule
-    |> cast(attrs, [:name, :compiled, :module, :enabled])
+    |> cast(attrs, [:name, :compiled, :module, :enabled, :cron_expression, :priority, :rate_limit_per_minute, :timezone])
     |> validate_required([:name, :compiled])
     |> unique_constraint(:name)
   end

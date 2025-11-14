@@ -18,7 +18,6 @@ defmodule TimeOS.Schema.Event do
   end
 
   def from_emit(event_type, attrs) do
-    # Convert atom event_type to string
     type_string = if is_atom(event_type), do: Atom.to_string(event_type), else: event_type
 
     changeset(%__MODULE__{}, %{

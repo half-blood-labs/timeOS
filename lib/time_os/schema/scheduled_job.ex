@@ -14,14 +14,28 @@ defmodule TimeOS.Schema.ScheduledJob do
     field :args, :map
     field :last_error, :string
     field :idempotency_key, :string
+    field :priority, :integer, default: 0
+    field :timezone, :string
+    field :rate_limit_key, :string
+    field :dead_letter_queue, :boolean, default: false
+    field :dead_letter_at, :utc_datetime_usec
     timestamps()
   end
 
   def changeset(job, attrs) do
     job
-    |> cast(attrs, [:rule_id, :event_id, :perform_at, :attempt_count, :max_attempts, :status, :args, :last_error, :idempotency_key])
+    |> cast(attrs, [:rule_id, :event_id, :perform_at, :attempt_count, :max_attempts, :status, :args, :last_error, :idempotency_key, :priority, :timezone, :rate_limit_key, :dead_letter_queue, :dead_letter_at])
     |> validate_required([:rule_id, :perform_at])
     |> unique_constraint(:idempotency_key, name: :scheduled_jobs_idempotency_key_unique)
+  end
+
+  def mark_dead_letter(job, reason) do
+    change(job,
+      status: :dead,
+      last_error: reason,
+      dead_letter_queue: true,
+      dead_letter_at: DateTime.utc_now()
+    )
   end
 
   def mark_running(job) do
