@@ -10,6 +10,15 @@ defmodule Timeos.MixProject do
       deps: deps(),
       aliases: aliases(),
       elixirc_paths: elixirc_paths(Mix.env()),
+      description: "A powerful temporal rule engine for Elixir that enables you to schedule jobs based on events, time intervals, and cron expressions.",
+      package: [
+        maintainers: ["ijunaid8989"],
+        licenses: ["MIT"],
+        links: %{
+          "GitHub" => "https://github.com/ijunaid8989/timeOS",
+          "Hex" => "https://hex.pm/packages/timeos"
+        }
+      ],
       docs: [
         main: "readme",
         extras: ["README.md"],
