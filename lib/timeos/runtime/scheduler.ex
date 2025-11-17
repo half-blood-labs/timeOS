@@ -11,7 +11,7 @@ defmodule TimeOS.Scheduler do
   import Ecto.Query
 
   @poll_interval_ms 1_000
-  @every_rules_check_interval_ms 60_000
+  @every_rules_check_interval_ms 1_000
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -80,7 +80,16 @@ defmodule TimeOS.Scheduler do
       if can_execute_job?(job) do
         if check_rate_limit(job) do
           if check_concurrency_limit(job) do
-            spawn_worker(job)
+            # Mark as running immediately to prevent duplicate execution
+            case job
+                 |> ScheduledJob.mark_running()
+                 |> Repo.update() do
+              {:ok, updated_job} ->
+                spawn_worker(updated_job)
+
+              {:error, _reason} ->
+                Logger.warning("Failed to mark job #{job.id} as running, skipping")
+            end
           else
             Logger.debug("Job #{job.id} concurrency limited, deferring")
           end
@@ -238,68 +247,93 @@ defmodule TimeOS.Scheduler do
     interval_ms = Map.get(compiled, "interval_ms", 0)
     actions = Map.get(compiled, "actions", [])
 
-    query =
+    # Check if there's already a pending job for this rule
+    pending_job_query =
       from(j in ScheduledJob,
-        where: j.rule_id == ^rule.id,
-        order_by: [desc: :perform_at],
+        where: j.rule_id == ^rule.id and j.status == :pending,
         limit: 1
       )
 
-    last_job = Repo.one(query)
+    pending_job = Repo.one(pending_job_query)
 
-    should_create =
-      case last_job do
-        nil ->
-          true
+    # Don't create if there's already a pending job
+    if pending_job do
+      :ok
+    else
+      query =
+        from(j in ScheduledJob,
+          where: j.rule_id == ^rule.id,
+          order_by: [desc: :perform_at],
+          limit: 1
+        )
 
-        job ->
-          DateTime.diff(now, job.perform_at, :millisecond) >= interval_ms
-      end
+      last_job = Repo.one(query)
 
-    if should_create do
-      base_time =
+      should_create =
         case last_job do
-          nil -> now
-          job -> job.perform_at
+          nil ->
+            true
+
+          job ->
+            DateTime.diff(now, job.perform_at, :millisecond) >= interval_ms
         end
 
-      next_perform_at = calculate_next_interval(base_time, interval_ms, now)
-      next_perform_at = apply_timezone(next_perform_at, rule.timezone)
+      if should_create do
+        base_time =
+          case last_job do
+            nil -> now
+            job -> job.perform_at
+          end
 
-      Enum.each(actions, fn action ->
-        {action_name, action_opts} = extract_action_info(action)
+        # Calculate how many intervals have passed and create jobs for all of them
+        # This ensures we don't miss jobs when the check interval is longer than the job interval
+        elapsed_ms = DateTime.diff(now, base_time, :millisecond)
+        intervals_to_create = div(elapsed_ms, interval_ms)
 
-        rate_limit_key = generate_rate_limit_key(rule, action_name)
+        # Create jobs for each missed interval (up to a reasonable limit to prevent spam)
+        jobs_to_create = min(intervals_to_create, 100)
 
-        job_data = %{
-          rule_id: rule.id,
-          event_id: nil,
-          perform_at: next_perform_at,
-          status: :pending,
-          max_attempts: 3,
-          attempt_count: 0,
-          priority: rule.priority || 0,
-          timezone: rule.timezone,
-          rate_limit_key: rate_limit_key,
-          args: %{
-            "action" => normalize_action_name(action_name),
-            "opts" => action_opts || [],
-            "event_type" => nil,
-            "payload" => %{}
-          },
-          idempotency_key: generate_idempotency_key(rule.id, nil, action_name, next_perform_at)
-        }
+        Enum.each(0..(jobs_to_create - 1), fn interval_offset ->
+          next_perform_at = calculate_next_interval(base_time, interval_ms, interval_offset)
+          next_perform_at = apply_timezone(next_perform_at, rule.timezone)
 
-        changeset = ScheduledJob.changeset(%ScheduledJob{}, job_data)
+          Enum.each(actions, fn action ->
+            {action_name, action_opts} = extract_action_info(action)
 
-        case Repo.insert(changeset, on_conflict: :nothing) do
-          {:ok, _job} ->
-            Logger.debug("Scheduled every rule job for rule #{rule.name}")
+            rate_limit_key = generate_rate_limit_key(rule, action_name)
 
-          {:error, reason} ->
-            Logger.error("Failed to schedule every rule job: #{inspect(reason)}")
-        end
-      end)
+            job_data = %{
+              rule_id: rule.id,
+              event_id: nil,
+              perform_at: next_perform_at,
+              status: :pending,
+              max_attempts: 3,
+              attempt_count: 0,
+              priority: rule.priority || 0,
+              timezone: rule.timezone,
+              rate_limit_key: rate_limit_key,
+              args: %{
+                "action" => normalize_action_name(action_name),
+                "opts" => action_opts || [],
+                "event_type" => nil,
+                "payload" => %{}
+              },
+              idempotency_key:
+                generate_idempotency_key(rule.id, nil, action_name, next_perform_at)
+            }
+
+            changeset = ScheduledJob.changeset(%ScheduledJob{}, job_data)
+
+            case Repo.insert(changeset, on_conflict: :nothing) do
+              {:ok, _job} ->
+                Logger.debug("Scheduled every rule job for rule #{rule.name}")
+
+              {:error, reason} ->
+                Logger.error("Failed to schedule every rule job: #{inspect(reason)}")
+            end
+          end)
+        end)
+      end
     end
   end
 
@@ -371,14 +405,12 @@ defmodule TimeOS.Scheduler do
     end
   end
 
-  defp calculate_next_interval(base_time, interval_ms, now) do
+  defp calculate_next_interval(base_time, interval_ms, offset) do
     base_ms = DateTime.to_unix(base_time, :millisecond)
-    now_ms = DateTime.to_unix(now, :millisecond)
 
-    elapsed = now_ms - base_ms
-    intervals_passed = div(elapsed, interval_ms) + 1
-
-    next_ms = base_ms + intervals_passed * interval_ms
+    # Add (offset + 1) intervals to the base time
+    # offset=0 means the next interval, offset=1 means the one after that, etc.
+    next_ms = base_ms + (offset + 1) * interval_ms
     DateTime.from_unix!(next_ms, :millisecond)
   end
 

@@ -115,46 +115,80 @@ defmodule TimeOS.JobWorker do
   end
 
   defp execute_job(job, timeout_ref) do
-    Logger.info("Executing job #{job.id}")
+    # Job is already marked as running by the scheduler
+    # Refresh it to get the latest state and verify it's still runnable
+    updated_job = Repo.get(ScheduledJob, job.id) || job
 
-    updated_job =
-      job
-      |> ScheduledJob.mark_running()
-      |> Repo.update!()
+    # Double-check the job is still in a runnable state (prevent duplicate execution)
+    # Allow :pending for tests that bypass scheduler, but reject :success/:failed/:dead
+    if updated_job.status not in [:pending, :running] do
+      Logger.debug(
+        "Job #{job.id} is not in a runnable state (#{updated_job.status}), skipping execution"
+      )
+    else
+      # If still pending, mark as running now (for tests that bypass scheduler)
+      final_job =
+        if updated_job.status == :pending do
+          updated_job
+          |> ScheduledJob.mark_running()
+          |> Repo.update!()
+        else
+          updated_job
+        end
 
-    TimeOS.Telemetry.emit_event(:job, :started, %{count: 1}, %{job_id: job.id})
+      Logger.info("Executing job #{job.id}")
+      TimeOS.Telemetry.emit_event(:job, :started, %{count: 1}, %{job_id: job.id})
 
-    result = execute_action(updated_job.args)
+      result = execute_action(final_job.args)
 
-    # Cancel timeout timer if job completes before timeout
-    if timeout_ref do
-      Process.cancel_timer(timeout_ref)
-    end
+      # Cancel timeout timer if job completes before timeout
+      if timeout_ref do
+        Process.cancel_timer(timeout_ref)
+      end
 
-    case result do
-      :ok ->
-        result_data = %{
-          "status" => "success",
-          "completed_at" => DateTime.utc_now() |> DateTime.to_iso8601()
-        }
+      case result do
+        :ok ->
+          result_data = %{
+            "status" => "success",
+            "completed_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+          }
 
-        updated_job
-        |> ScheduledJob.mark_success(result_data)
-        |> Repo.update!()
+          # Use a transaction to ensure atomic update and prevent duplicate execution
+          case Repo.transaction(fn ->
+                 # Re-check status before updating to prevent race conditions
+                 current_job = Repo.get(ScheduledJob, final_job.id)
 
-        TimeOS.Telemetry.emit_event(:job, :completed, %{count: 1}, %{job_id: job.id})
-        Logger.info("Job #{job.id} succeeded")
+                 if current_job && current_job.status == :running do
+                   current_job
+                   |> ScheduledJob.mark_success(result_data)
+                   |> Repo.update!()
+                 else
+                   Logger.warning(
+                     "Job #{job.id} status changed to #{if current_job, do: current_job.status, else: "nil"} before completion, skipping update"
+                   )
 
-        trigger_dependent_jobs(updated_job.id)
+                   nil
+                 end
+               end) do
+            {:ok, _} ->
+              TimeOS.Telemetry.emit_event(:job, :completed, %{count: 1}, %{job_id: job.id})
+              Logger.info("Job #{job.id} succeeded")
+              trigger_dependent_jobs(final_job.id)
 
-      {:error, reason} ->
-        TimeOS.Telemetry.emit_event(:job, :failed, %{count: 1}, %{job_id: job.id, error: reason})
-        handle_retry_or_dead(updated_job, reason)
-    end
+            {:error, reason} ->
+              Logger.error("Failed to update job #{job.id} to success: #{inspect(reason)}")
+          end
 
-    # Decrement concurrency tracker
-    if job.rule_id do
-      TimeOS.ConcurrencyTracker.decrement(job.rule_id)
+        {:error, reason} ->
+          TimeOS.Telemetry.emit_event(:job, :failed, %{count: 1}, %{job_id: job.id, error: reason})
+
+          handle_retry_or_dead(final_job, reason)
+      end
+
+      # Decrement concurrency tracker
+      if job.rule_id do
+        TimeOS.ConcurrencyTracker.decrement(job.rule_id)
+      end
     end
   end
 

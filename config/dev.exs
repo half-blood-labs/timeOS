@@ -9,7 +9,7 @@ config :timeos, enable_ui: true
 config :timeos, ui_port: 4000
 
 config :logger,
-  level: :debug,
+  level: :info,
   compile_time_purge_matching: [
-    [level_lower_than: :debug]
+    [level_lower_than: :info]
   ]
